@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111111"><title>Hi-Mundim | Rádio</title>
+<meta name="description" content="Rádio online do Hi-Mundim: turismo, mobilidade, gastronomia, cultura, lazer e tempo livre.">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="topbar"><a class="brand" href="https://hi-mundim.com.br/" target="_blank" rel="noopener"><span class="brand-kicker">HI-MUNDIM</span><strong>RÁDIO</strong></a><a class="site-link" href="https://hi-mundim.com.br/" target="_blank" rel="noopener">Ir para o site ↗</a></header>
+<main class="shell">
+<section class="hero"><p class="eyebrow">guia do tempo livre · agora também para ouvir</p><h1>O Hi-Mundim<br>no seu ouvido.</h1><p class="lead">Conteúdo para acompanhar seus caminhos, sabores e tudo o que cabe no balaio do tempo livre.</p></section>
+<section class="player-card" aria-labelledby="player-title">
+<div class="live-row"><span id="liveBadge" class="badge">FORA DO AR</span><span id="connectionText" class="muted">Conectando ao Firebase…</span></div>
+<div class="now-playing"><div><p class="section-label">Agora</p><h2 id="player-title">Nenhuma programação no ar</h2><p id="nowDescription" class="muted">Quando houver uma transmissão ou programa publicado, ele aparecerá aqui.</p></div><button id="playBtn" class="play" type="button" disabled aria-label="Ouvir rádio">▶</button></div>
+<audio id="audio" preload="none"></audio>
+<div class="player-controls"><div class="volume-wrap"><span>Volume</span><input id="volume" type="range" min="0" max="1" step="0.01" value="0.85"></div><span id="audioState" class="muted">Aguardando áudio</span></div>
+</section>
+<section class="grid three">
+<article class="editorial-card"><span class="number">01</span><h3>Caminhos</h3><p>Turismo e mobilidade.</p></article>
+<article class="editorial-card"><span class="number">02</span><h3>Sabores</h3><p>Gastronomia.</p></article>
+<article class="editorial-card"><span class="number">03</span><h3>Balaio</h3><p>Aproveitar o tempo livre.</p></article>
+</section>
+<section class="schedule"><div class="section-head"><div><p class="section-label">Programação</p><h2>Próximos programas</h2></div><span id="scheduleStatus" class="muted"></span></div><div id="scheduleList" class="schedule-list"><div class="empty">Ainda não há programação publicada.</div></div></section>
+</main>
+<footer><a href="https://hi-mundim.com.br/" target="_blank" rel="noopener">hi-mundim.com.br</a><span>Rádio online</span></footer>
+<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-database-compat.js"></script>
+<script src="/firebase-config.js"></script><script src="/app.js"></script>
+</body></html>
