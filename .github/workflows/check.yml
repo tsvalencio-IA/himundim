@@ -1,0 +1,25 @@
+name: Validar Hi-Mundim Radio
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Conferir arquivos obrigatorios
+        run: |
+          test -f index.html
+          test -f styles.css
+          test -f app.js
+          test -f firebase-config.js
+          test -f admin/index.html
+          test -f admin/admin.js
+          test -f vercel.json
+      - name: Validar JavaScript
+        run: |
+          node --check app.js
+          node --check admin/admin.js
+      - name: Validar JSON
+        run: python3 -m json.tool vercel.json >/dev/null
