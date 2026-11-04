@@ -11,15 +11,19 @@ jobs:
       - name: Conferir arquivos obrigatorios
         run: |
           test -f index.html
-          test -f styles.css
+          test -f site.css
+          test -f site.js
           test -f app.js
           test -f firebase-config.js
           test -f admin/index.html
           test -f admin/admin.js
+          test -f api/himundim-meta.js
           test -f vercel.json
       - name: Validar JavaScript
         run: |
           node --check app.js
+          node --check site.js
           node --check admin/admin.js
+          node --check api/himundim-meta.js
       - name: Validar JSON
         run: python3 -m json.tool vercel.json >/dev/null
