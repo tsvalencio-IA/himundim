@@ -1,30 +1,165 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#111111"><title>Hi-Mundim | Rádio</title>
-<meta name="description" content="Rádio online do Hi-Mundim: turismo, mobilidade, gastronomia, cultura, lazer e tempo livre.">
-<link rel="stylesheet" href="/styles.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>Hi-Mundim | guia do tempo livre + Rádio</title>
+  <meta name="description" content="Demonstração da Rádio Hi-Mundim integrada à experiência editorial do guia do tempo livre.">
+  <link rel="stylesheet" href="/site.css">
 </head>
 <body>
-<header class="topbar"><a class="brand" href="https://hi-mundim.com.br/" target="_blank" rel="noopener"><span class="brand-kicker">HI-MUNDIM</span><strong>RÁDIO</strong></a><a class="site-link" href="https://hi-mundim.com.br/" target="_blank" rel="noopener">Ir para o site ↗</a></header>
-<main class="shell">
-<section class="hero"><p class="eyebrow">guia do tempo livre · agora também para ouvir</p><h1>O Hi-Mundim<br>no seu ouvido.</h1><p class="lead">Conteúdo para acompanhar seus caminhos, sabores e tudo o que cabe no balaio do tempo livre.</p></section>
-<section class="player-card" aria-labelledby="player-title">
-<div class="live-row"><span id="liveBadge" class="badge">FORA DO AR</span><span id="connectionText" class="muted">Conectando ao Firebase…</span></div>
-<div class="now-playing"><div><p class="section-label">Agora</p><h2 id="player-title">Nenhuma programação no ar</h2><p id="nowDescription" class="muted">Quando houver uma transmissão ou programa publicado, ele aparecerá aqui.</p></div><button id="playBtn" class="play" type="button" disabled aria-label="Ouvir rádio">▶</button></div>
-<audio id="audio" preload="none"></audio>
-<div class="player-controls"><div class="volume-wrap"><span>Volume</span><input id="volume" type="range" min="0" max="1" step="0.01" value="0.85"></div><span id="audioState" class="muted">Aguardando áudio</span></div>
-</section>
-<section class="grid three">
-<article class="editorial-card"><span class="number">01</span><h3>Caminhos</h3><p>Turismo e mobilidade.</p></article>
-<article class="editorial-card"><span class="number">02</span><h3>Sabores</h3><p>Gastronomia.</p></article>
-<article class="editorial-card"><span class="number">03</span><h3>Balaio</h3><p>Aproveitar o tempo livre.</p></article>
-</section>
-<section class="schedule"><div class="section-head"><div><p class="section-label">Programação</p><h2>Próximos programas</h2></div><span id="scheduleStatus" class="muted"></span></div><div id="scheduleList" class="schedule-list"><div class="empty">Ainda não há programação publicada.</div></div></section>
-</main>
-<footer><a href="https://hi-mundim.com.br/" target="_blank" rel="noopener">hi-mundim.com.br</a><span>Rádio online</span></footer>
-<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-database-compat.js"></script>
-<script src="/firebase-config.js"></script><script src="/app.js"></script>
-</body></html>
+  <div class="demo-note">DEMONSTRAÇÃO · PROPOSTA RÁDIO HI-MUNDIM</div>
+
+  <header class="site-header">
+    <div class="header-tools">
+      <a href="https://www.instagram.com/himundim/" target="_blank" rel="noopener">Instagram</a>
+      <a href="https://www.youtube.com/" target="_blank" rel="noopener">YouTube</a>
+      <a class="radio-top-link" href="#radio">● Rádio Hi-Mundim</a>
+    </div>
+
+    <a class="source-brand" href="https://hi-mundim.com.br/" target="_blank" rel="noopener" aria-label="Hi-Mundim">
+      <img id="sourceLogo" alt="Hi-Mundim" hidden>
+      <span id="brandFallback" class="brand-fallback">
+        <strong>hi-mundim</strong>
+        <small>guia do tempo livre</small>
+      </span>
+    </a>
+
+    <nav class="main-nav" aria-label="Navegação principal">
+      <a href="https://hi-mundim.com.br/" target="_blank" rel="noopener">Home</a>
+      <a href="https://hi-mundim.com.br/quem-somos-hi-mundim/" target="_blank" rel="noopener">Nós</a>
+      <a href="https://hi-mundim.com.br/" target="_blank" rel="noopener">Newsletter</a>
+      <a href="https://hi-mundim.com.br/" target="_blank" rel="noopener">Guias | E-books</a>
+      <a href="https://hi-mundim.com.br/" target="_blank" rel="noopener">K-Fest</a>
+      <a class="nav-radio" href="#radio">Rádio <span>NOVO</span></a>
+    </nav>
+  </header>
+
+  <main>
+    <section id="radio" class="radio-hero page-width">
+      <div class="radio-copy">
+        <div class="radio-kicker"><span id="liveBadge" class="live-pill">FORA DO AR</span><span id="connectionText">Conectando…</span></div>
+        <p class="overline">RÁDIO HI-MUNDIM</p>
+        <h1 id="player-title">O guia do tempo livre, agora também para ouvir.</h1>
+        <p id="nowDescription" class="radio-description">Quando houver uma transmissão ou programa publicado, ele aparecerá aqui.</p>
+        <div class="radio-actions">
+          <button id="playBtn" class="primary-play" type="button" disabled><span class="play-symbol">▶</span><span class="play-copy">OUVIR AGORA</span></button>
+          <div class="volume-box"><label for="volume">VOLUME</label><input id="volume" type="range" min="0" max="1" step="0.01" value="0.85"></div>
+        </div>
+        <span id="audioState" class="radio-state">Aguardando áudio</span>
+        <audio id="audio" preload="none"></audio>
+      </div>
+      <div class="radio-art" aria-hidden="true">
+        <div class="radio-disc"><span>HI</span></div>
+        <div class="radio-wave wave-a"></div>
+        <div class="radio-wave wave-b"></div>
+        <div class="radio-wave wave-c"></div>
+        <strong>ON<br>AIR</strong>
+      </div>
+    </section>
+
+    <section class="page-width latest">
+      <div class="section-title-row">
+        <div><p class="eyebrow">EM DESTAQUE</p><h2>Agora no Hi-Mundim</h2></div>
+        <a href="https://hi-mundim.com.br/" target="_blank" rel="noopener">Ver site oficial ↗</a>
+      </div>
+
+      <div class="lead-grid">
+        <a class="story story-main with-image" data-slug="bts-em-sp-show-impecavel-com-organizacao-desastrosa" href="https://hi-mundim.com.br/bts-em-sp-show-impecavel-com-organizacao-desastrosa/" target="_blank" rel="noopener">
+          <div class="story-image"><img alt="" loading="eager"></div>
+          <div class="story-copy"><span class="category">Balaio</span><span class="date">3 nov 2026</span><h3>BTS em SP: show impecável com organização desastrosa</h3><p>Experiências, cultura e tudo o que movimenta o tempo livre.</p></div>
+        </a>
+        <div class="side-stories">
+          <a class="story story-side with-image" data-slug="amae-festival-2026-maior-edicao-historia-rio-preto" href="https://hi-mundim.com.br/amae-festival-2026-maior-edicao-historia-rio-preto/" target="_blank" rel="noopener">
+            <div class="story-image"><img alt="" loading="lazy"></div>
+            <div class="story-copy"><span class="category">Balaio</span><span class="date">2 nov 2026</span><h3>Amaê Festival 2026, em Rio Preto, promete ser a maior edição de todas</h3></div>
+          </a>
+          <a class="story story-side with-image" data-slug="riopreto-shopping-abertura-natal-2026" href="https://hi-mundim.com.br/riopreto-shopping-abertura-natal-2026/" target="_blank" rel="noopener">
+            <div class="story-image"><img alt="" loading="lazy"></div>
+            <div class="story-copy"><span class="category">Balaio</span><span class="date">2 nov 2026</span><h3>Riopreto Shopping abre o Natal 2026 com Papai Noel, música e atrações</h3></div>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="social-band">
+      <div class="page-width">
+        <div class="section-title-row inverse">
+          <div><p class="eyebrow">INSTAGRAM</p><h2>@himundim</h2></div>
+          <a href="https://www.instagram.com/himundim/" target="_blank" rel="noopener">Seguir no Instagram ↗</a>
+        </div>
+        <div class="social-grid">
+          <a href="https://www.instagram.com/himundim/" target="_blank" rel="noopener"><span>REELS</span><strong>Viagens, eventos e experiências</strong></a>
+          <a href="https://www.instagram.com/himundim/" target="_blank" rel="noopener"><span>DICAS</span><strong>O que fazer no tempo livre</strong></a>
+          <a href="https://www.instagram.com/himundim/" target="_blank" rel="noopener"><span>AGENDA</span><strong>Rio Preto e região</strong></a>
+          <a href="https://www.instagram.com/himundim/" target="_blank" rel="noopener"><span>VIDEOCAST</span><strong>Balaio Hi-Mundim</strong></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="page-width editorial-section">
+      <div class="category-heading"><div><p class="eyebrow">CATEGORIA</p><h2>Caminhos</h2><p>Sobre turismo e mobilidade</p></div><a href="https://hi-mundim.com.br/category/caminhos/" target="_blank" rel="noopener">Ver categoria ↗</a></div>
+      <div class="cards-three">
+        <a class="article-card with-image" data-slug="jetour-s08-suv-hibrido-7-lugares" href="https://hi-mundim.com.br/jetour-s08-suv-hibrido-7-lugares/" target="_blank" rel="noopener"><div class="article-image"><img alt="" loading="lazy"></div><span>13 out 2026</span><h3>Jetour apresenta o SUV S08 no Brasil com foco em viagens e uso familiar</h3><small>Michelle Monte Mor</small></a>
+        <a class="article-card with-image" data-slug="cnh-do-brasil-pedagio-eletronico-evitar-golpes" href="https://hi-mundim.com.br/cnh-do-brasil-pedagio-eletronico-evitar-golpes/" target="_blank" rel="noopener"><div class="article-image"><img alt="" loading="lazy"></div><span>15 set 2026</span><h3>CNH do Brasil reúne débitos de pedágio eletrônico e protege motoristas de golpes</h3><small>Michelle Monte Mor</small></a>
+        <a class="article-card with-image" data-slug="afroturismo-no-brasil-roteiros" href="https://hi-mundim.com.br/afroturismo-no-brasil-roteiros/" target="_blank" rel="noopener"><div class="article-image"><img alt="" loading="lazy"></div><span>8 set 2026</span><h3>Afroturismo no Brasil: 10 dicas de roteiros afrocentrados</h3><small>Michelle Monte Mor</small></a>
+      </div>
+    </section>
+
+    <section class="page-width editorial-section">
+      <div class="category-heading"><div><p class="eyebrow">CATEGORIA</p><h2>Sabores</h2><p>Sobre gastronomia</p></div><a href="https://hi-mundim.com.br/category/sabores/" target="_blank" rel="noopener">Ver categoria ↗</a></div>
+      <div class="cards-three">
+        <a class="article-card with-image" data-slug="chef-dom-aula-show-senac-rio-preto-turismo" href="https://hi-mundim.com.br/chef-dom-aula-show-senac-rio-preto-turismo/" target="_blank" rel="noopener"><div class="article-image"><img alt="" loading="lazy"></div><span>3 nov 2026</span><h3>Chef do D.O.M. faz aula-show gratuita no Senac Rio Preto sobre gastronomia e turismo</h3><small>Michelle Monte Mor</small></a>
+        <a class="article-card with-image" data-slug="casa-bauducco-riopreto-shopping-reabertura-ambiente-renovado" href="https://hi-mundim.com.br/casa-bauducco-riopreto-shopping-reabertura-ambiente-renovado/" target="_blank" rel="noopener"><div class="article-image"><img alt="" loading="lazy"></div><span>5 out 2026</span><h3>Casa Bauducco do Riopreto Shopping reabre com projeto arquitetônico renovado</h3><small>Michelle Monte Mor</small></a>
+        <a class="article-card with-image" data-slug="socorro-sp-cachaca" href="https://hi-mundim.com.br/socorro-sp-cachaca/" target="_blank" rel="noopener"><div class="article-image"><img alt="" loading="lazy"></div><span>9 set 2026</span><h3>Socorro-SP: Roteiro da Cachaça</h3><small>Marcelo Ferri</small></a>
+      </div>
+    </section>
+
+    <section class="page-width editorial-section">
+      <div class="category-heading"><div><p class="eyebrow">CATEGORIA</p><h2>Balaio</h2><p>Sobre aproveitar o tempo livre</p></div><a href="https://hi-mundim.com.br/category/balaio/" target="_blank" rel="noopener">Ver categoria ↗</a></div>
+      <div class="cards-three">
+        <a class="article-card with-image" data-slug="itamar-vieira-junior-participa-de-bate-papo-no-sesc-rio-preto" href="https://hi-mundim.com.br/itamar-vieira-junior-participa-de-bate-papo-no-sesc-rio-preto/" target="_blank" rel="noopener"><div class="article-image"><img alt="" loading="lazy"></div><span>4 nov 2026</span><h3>Itamar Vieira Junior, autor de “Torto Arado”, participa de bate-papo no Sesc Rio Preto</h3><small>Michelle Monte Mor</small></a>
+        <a class="article-card with-image" data-slug="bts-em-sp-show-impecavel-com-organizacao-desastrosa" href="https://hi-mundim.com.br/bts-em-sp-show-impecavel-com-organizacao-desastrosa/" target="_blank" rel="noopener"><div class="article-image"><img alt="" loading="lazy"></div><span>3 nov 2026</span><h3>BTS em SP: show impecável com organização desastrosa</h3><small>Michelle Monte Mor</small></a>
+        <a class="article-card with-image" data-slug="amae-festival-2026-maior-edicao-historia-rio-preto" href="https://hi-mundim.com.br/amae-festival-2026-maior-edicao-historia-rio-preto/" target="_blank" rel="noopener"><div class="article-image"><img alt="" loading="lazy"></div><span>2 nov 2026</span><h3>Amaê Festival 2026, em Rio Preto, promete ser a maior edição de todas</h3><small>Michelle Monte Mor</small></a>
+      </div>
+    </section>
+
+    <section class="radio-schedule-wrap">
+      <div class="page-width">
+        <div class="category-heading inverse"><div><p class="eyebrow">RÁDIO HI-MUNDIM</p><h2>Programação</h2><p>Conteúdo para continuar vivendo o tempo livre, mesmo quando a tela fecha.</p></div><span id="scheduleStatus"></span></div>
+        <div id="scheduleList" class="schedule-list"><div class="schedule-empty">Ainda não há programação publicada.</div></div>
+      </div>
+    </section>
+
+    <section class="page-width youtube-section">
+      <div class="category-heading"><div><p class="eyebrow">YOUTUBE</p><h2>Hi-Mundim em vídeo</h2></div><a href="https://www.youtube.com/" target="_blank" rel="noopener">Assinar ↗</a></div>
+      <div class="youtube-grid">
+        <a href="https://www.youtube.com/" target="_blank" rel="noopener"><span>▶</span><strong>Experiência Gastronômica Rio Preto</strong></a>
+        <a href="https://www.youtube.com/" target="_blank" rel="noopener"><span>▶</span><strong>Entrevista | Criolo reflete sobre origem e carreira</strong></a>
+        <a href="https://www.youtube.com/" target="_blank" rel="noopener"><span>▶</span><strong>Balaio Hi-Mundim | Teatro no quintal a troco de palito</strong></a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="page-width footer-inner">
+      <span class="footer-brand">hi-mundim <small>guia do tempo livre</small></span>
+      <p>Protótipo de apresentação da Rádio Hi-Mundim. As matérias e marcas exibidas pertencem ao site oficial e os links direcionam para hi-mundim.com.br.</p>
+      <a href="https://hi-mundim.com.br/" target="_blank" rel="noopener">SITE OFICIAL ↗</a>
+    </div>
+  </footer>
+
+  <div class="mini-player" id="miniPlayer">
+    <span id="miniBadge" class="mini-live">RÁDIO</span>
+    <div class="mini-info"><small>Rádio Hi-Mundim</small><strong id="miniTitle">Fora do ar</strong></div>
+    <button id="miniPlayBtn" type="button" disabled aria-label="Ouvir Rádio Hi-Mundim">▶</button>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-database-compat.js"></script>
+  <script src="/firebase-config.js"></script>
+  <script src="/app.js"></script>
+  <script src="/site.js"></script>
+</body>
+</html>
