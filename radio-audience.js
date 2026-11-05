@@ -17,7 +17,15 @@
   }
   function create({ db, auth, rootPath, adminUid, onError = () => {} }) {
     let ref = null, connected = false, listening = false, timer = null, generation = 0, authPromise = null, offset = 0;
+    let stopInitialAuth = null;
+    const authReady = typeof auth.onAuthStateChanged === 'function' ? new Promise(resolve => {
+      let completed = false;
+      const finish = () => { completed = true; resolve(); stopInitialAuth?.(); };
+      stopInitialAuth = auth.onAuthStateChanged(finish, finish);
+      if (completed) stopInitialAuth?.();
+    }) : Promise.resolve();
     async function user() {
+      await authReady;
       if (auth.currentUser) return auth.currentUser;
       if (!authPromise) authPromise = auth.signInAnonymously().then(result => result.user).finally(() => { authPromise = null; });
       return authPromise;
@@ -48,7 +56,7 @@
     return {
       user, now: () => Date.now() + offset,
       setListening(value) { if (listening === !!value) return; listening = !!value; write(); },
-      stop() { generation++; connectedRef.off('value', callback); offsetRef.off(); clearInterval(timer); const old = ref; ref = null; if (old) old.remove().then(() => old.onDisconnect().cancel()).catch(() => {}); }
+      stop() { generation++; stopInitialAuth?.(); connectedRef.off('value', callback); offsetRef.off(); clearInterval(timer); const old = ref; ref = null; if (old) old.remove().then(() => old.onDisconnect().cancel()).catch(() => {}); }
     };
   }
   function bindMessages({ db, audience }) {

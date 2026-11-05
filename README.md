@@ -114,7 +114,7 @@ A biblioteca pública, músicas/vinhetas, vídeos e programas administrativos t�
 
 ### Validação desta versão
 
-- 44 testes automatizados, incluindo integridade de todas as matérias/rotas, regras de privacidade, reconexão da presença, cortes de vários intervalos em WebM e remapeamento do YouTube.
+- 45 testes automatizados, incluindo integridade de todas as matérias/rotas, regras de privacidade, reconexão da presença, cortes de vários intervalos em WebM e remapeamento do YouTube.
 - Navegador com banco isolado: mensagem do ouvinte → admin → resposta privada; gravação de 84 segundos → corte de 10 segundos → arquivo de 74,246 segundos decodificado sem erro; publicação no acervo e reprodução na página pública; a reprodução continuou ao navegar para uma matéria.
 - Interfaces de 320, 390, 768 e 1280 pixels verificadas sem rolagem horizontal; biblioteca maximizada/restaurada no celular e computador. Newsletter original MailerLite carregou os campos e consentimentos. Não foi enviada nenhuma inscrição.
 - Upload técnico real de 2 segundos (19.157 bytes) no serviço de mídia: upload e entrega HTTP 200, WebM/Opus decodificável. O arquivo técnico ficou em `himundim/verificacao`, sem publicação em programas e sem escrita de teste no Firebase de produção.
