@@ -11,7 +11,10 @@
     const effectiveVolume = () => Math.round(Math.min(100, Number($("youtubeAirVolume").value) * Number($("masterVolume").value) / 100));
     function controls() {
       const item = current(), on = ownsLive(), paused = item && item.playing === false;
-      $("youtubeSendBtn").disabled = writing || !on;
+      const hasSelection = !!selected || !!Y.videoId($("youtubeUrl").value);
+      $("youtubePreviewBtn").disabled = !hasSelection;
+      $("youtubeSaveBtn").disabled = writing || !hasSelection;
+      $("youtubeSendBtn").disabled = writing || !on || !hasSelection;
       $("youtubeAirPlayBtn").disabled = writing || !on || !paused;
       $("youtubeAirPauseBtn").disabled = writing || !on || !item || paused;
       $("youtubeAirStopBtn").disabled = writing || !on || !item;
@@ -47,15 +50,17 @@
       } catch (_) {} })();
       return item;
     }
-    async function pickLink() { const item = await metadata($("youtubeUrl").value); $("youtubeSelectedTitle").textContent = item.title; return item; }
+    async function pickLink() { const item = selected || await metadata($("youtubeUrl").value); $("youtubeSelectedTitle").textContent = item.title; controls(); return item; }
     function attempt(action) { Promise.resolve().then(action).catch(error => notice(error.message || "Não foi possível concluir a ação do YouTube.", true)); }
     async function previewItem(item) {
       selected = item; $("youtubeUrl").value = item.url; $("youtubeSelectedTitle").textContent = item.title;
+      controls();
       await preview.update({ ...item, active: true, playing: true, positionSec: 0, startedAt: Date.now(), volume: 70, command: "PLAY", commandSeq: Date.now() }, null, true);
       notice("Pré-escuta aberta neste aparelho.");
     }
     async function sendItem(item) {
       selected = item; $("youtubeUrl").value = item.url; $("youtubeSelectedTitle").textContent = item.title;
+      controls();
       preview.stop();
       await publish(() => ({ active: true, playing: true, videoId: item.videoId, title: item.title, positionSec: 0, startedAt: firebase.database.ServerValue.TIMESTAMP, muted: false, command: "PLAY" }));
       notice("YouTube enviado ao player da página do ouvinte.");
@@ -68,14 +73,14 @@
       notice("YouTube salvo na biblioteca da Hi-Mundim.");
     }
     function card(item, key, saved = false) {
-      return '<article class="youtube-card"><img src="' + C.escape(item.thumbnail || "https://i.ytimg.com/vi/" + item.videoId + "/mqdefault.jpg") + '" alt="" loading="lazy"><div><h3>' + C.escape(item.title) + '</h3><div class="btn-row"><button class="btn secondary compact" type="button" data-youtube-preview="' + C.escape(key) + '">Pré-ouvir</button><button class="btn compact" type="button" data-youtube-send="' + C.escape(key) + '">Tocar para ouvintes</button>' + (saved ? "" : '<button class="btn secondary compact" type="button" data-youtube-save="' + C.escape(key) + '">Salvar</button>') + '</div></div></article>';
+      return '<article class="youtube-card"><img src="' + C.escape(item.thumbnail || "https://i.ytimg.com/vi/" + item.videoId + "/mqdefault.jpg") + '" alt="" loading="lazy"><div><h3>' + C.escape(item.title) + '</h3><div class="btn-row"><button class="btn secondary compact" type="button" data-youtube-preview="' + C.escape(key) + '">Pré-ouvir (só eu)</button><button class="btn compact" type="button" data-youtube-send="' + C.escape(key) + '">Tocar para ouvintes</button>' + (saved ? "" : '<button class="btn secondary compact" type="button" data-youtube-save="' + C.escape(key) + '">Salvar na biblioteca</button>') + '</div></div></article>';
     }
     function renderLibrary() {
       const query = $("youtubeLibrarySearch").value.trim().toLocaleLowerCase("pt-BR");
       const rows = C.entries(library).filter(row => row.kind === "YOUTUBE" && Y.videoId(row.youtubeId || row.url) && String(row.name || "").toLocaleLowerCase("pt-BR").includes(query));
       $("youtubeLibraryList").innerHTML = rows.length ? rows.map(row => card({ videoId: Y.videoId(row.youtubeId || row.url), title: row.name || "YouTube", thumbnail: row.thumbnail }, "library_" + row.id, true)).join("") : '<p class="empty">' + (query ? "Nenhum YouTube encontrado." : "Os vídeos salvos ficam aqui para usar em outros programas.") + '</p>';
     }
-    $("youtubeUrl").oninput = () => { selected = null; $("youtubeSelectedTitle").textContent = ""; };
+    $("youtubeUrl").oninput = () => { selected = null; $("youtubeSelectedTitle").textContent = Y.videoId($("youtubeUrl").value) ? "Link de vídeo informado." : "Nenhum vídeo selecionado."; controls(); };
     $("youtubePreviewBtn").onclick = () => attempt(async () => previewItem(await pickLink()));
     $("youtubeSendBtn").onclick = () => attempt(async () => sendItem(await pickLink()));
     $("youtubeSaveBtn").onclick = () => attempt(async () => saveItem(await pickLink()));
@@ -100,11 +105,9 @@
       event.preventDefault(); attempt(async () => {
         const query = $("youtubeSearch").value.trim();
         if (!query) throw new Error("Digite o que deseja pesquisar.");
-        $("youtubeExternalSearch").href = "https://www.youtube.com/results?search_query=" + encodeURIComponent(query);
-        $("youtubeExternalSearch").hidden = false;
-        if (Y.videoId(query)) { const item = await metadata(query); results = { [item.videoId]: item }; $("youtubeSearchResults").innerHTML = card(item, item.videoId); return; }
+        if (/^(https?:\/\/|(?:www\.|m\.)?youtube\.com\/|youtu\.be\/)/i.test(query) && Y.videoId(query)) { const item = await metadata(query); results = { [item.videoId]: item }; $("youtubeSearchResults").innerHTML = card(item, item.videoId); return; }
         const key = $("youtubeApiKey").value.trim();
-        if (!key) { notice("Abra Buscar no YouTube e cole o vídeo escolhido acima. Para ver os resultados aqui, configure a pesquisa interna."); $("youtubeSearchSettings").open = true; return; }
+        if (!key) { notice("A pesquisa interna precisa da chave YouTube Data API já usada no Bíblia. Informe a chave na configuração desta tela para carregar os resultados aqui.", true); $("youtubeSearchSettings").open = true; $("youtubeApiKey").focus(); return; }
         $("youtubeSearchBtn").disabled = true; notice("Pesquisando no YouTube…");
         try {
           const url = new URL("https://www.googleapis.com/youtube/v3/search");

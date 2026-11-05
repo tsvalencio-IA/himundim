@@ -64,11 +64,11 @@ Prioridade: seleção explícita do acervo → estúdio ao vivo ou fonte imediat
 
 ## YouTube
 
-O painel tem uma seção visível **YouTube na rádio**, com link de vídeo, pré-escuta neste aparelho, envio aos ouvintes, pausa, retomada, volume, silêncio e biblioteca de referências. A pré-escuta é interrompida ao enviar o vídeo para a rádio. O ouvinte continua na página Hi-Mundim; o player incorporado aparece junto aos controles da rádio.
+O painel abre o YouTube em **Pesquisa e pré-escuta**: digitar o nome, escolher um resultado, pré-ouvir somente neste aparelho, enviar aos ouvintes ou salvar na biblioteca. A pesquisa fica visível; o campo de link é uma alternativa recolhida. A pré-escuta é interrompida ao enviar o vídeo para a rádio. O ouvinte continua na página Hi-Mundim; o player incorporado aparece junto aos controles da rádio.
 
 O estado é sincronizado exclusivamente em `radio/himundim/liveMedia/youtube` e fica vinculado à sessão de estúdio. Quem chega depois acompanha a posição atual do programa; pausar localmente é respeitado, inclusive durante atualizações de volume. Encerrar o estúdio retira o YouTube da transmissão. A voz continua em WebRTC e o vídeo usa o player oficial incorporado, como no fluxo da Bíblia; não há extração de áudio do YouTube.
 
-Colar um vídeo e reproduzir não exige chave de pesquisa. Para pesquisar dentro do painel, a configuração opcional usa YouTube Data API, como o aplicativo original. A chave fica somente no armazenamento local deste aparelho. Sem chave, o painel oferece a busca no próprio YouTube para escolher e colar o link. Vídeos podem impedir incorporação e o navegador pode exigir um toque adicional; o player exibe essas situações.
+Colar um vídeo e reproduzir não exige chave de pesquisa. Para pesquisar dentro do painel, a configuração opcional usa YouTube Data API, como o aplicativo original. A chave fica somente no armazenamento local deste aparelho. Sem chave, o painel permanece no estúdio e pede a configuração da pesquisa. A chave salva no endereço da Bíblia não é transferida pelo Firebase para o endereço Hi-Mundim, pois o aplicativo original a armazena somente no navegador e na origem da página. Vídeos podem impedir incorporação e o navegador pode exigir um toque adicional; o player exibe essas situações.
 
 ## Permissões do ao vivo
 
