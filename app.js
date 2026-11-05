@@ -1,26 +1,199 @@
-(()=>{"use strict";
-const firebaseApp=firebase.initializeApp(window.HIMUNDIM_FIREBASE_CONFIG);
-const db=firebaseApp.database(); const ROOT=window.HIMUNDIM_DB_ROOT;
-const $=id=>document.getElementById(id);
-const els={audio:$("audio"),play:$("playBtn"),volume:$("volume"),badge:$("liveBadge"),conn:$("connectionText"),title:$("player-title"),desc:$("nowDescription"),state:$("audioState"),list:$("scheduleList"),sched:$("scheduleStatus"),miniPlay:$("miniPlayBtn"),miniTitle:$("miniTitle"),miniBadge:$("miniBadge")};
-let live={},programs={},schedule={},currentSource="";
-function fmt(ts){if(!ts)return"";return new Intl.DateTimeFormat("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}).format(new Date(ts));}
-function normalized(obj){return obj&&typeof obj==="object"?obj:{}}
-function allSchedule(){return Object.entries(schedule).map(function(entry){return Object.assign({id:entry[0]},entry[1]||{});}).filter(function(x){return x&&x.published!==false&&x.startAt;}).sort(function(a,b){return a.startAt-b.startAt;});}
-function currentScheduled(){const n=Date.now();return allSchedule().find(function(x){return Number(x.startAt)<=n&&(!x.endAt||Number(x.endAt)>n);});}
-function programFor(item){return item&&programs[item.programId]?programs[item.programId]:null;}
-function choose(){if(live.active&&live.audioUrl)return{id:"live",title:live.title||"Ao vivo",description:live.description||"Transmissão ao vivo do Hi-Mundim",audioUrl:live.audioUrl,live:true};const item=currentScheduled();const p=programFor(item);if(p&&p.published!==false&&p.audioUrl)return{id:item.id,title:p.title||"Programa",description:p.description||"",audioUrl:p.audioUrl,live:false};return null;}
-function applyPlayer(){const selected=choose();els.badge.textContent=selected&&selected.live?"AO VIVO":selected?"NO AR":"FORA DO AR";els.badge.classList.toggle("on",!!selected);els.title.textContent=selected?selected.title:"O guia do tempo livre, agora também para ouvir.";els.desc.textContent=selected?selected.description:"Quando houver uma transmissão ou programa publicado, ele aparecerá aqui.";els.play.disabled=!selected;if(els.miniPlay)els.miniPlay.disabled=!selected;if(els.miniTitle)els.miniTitle.textContent=selected?selected.title:"Fora do ar";if(els.miniBadge)els.miniBadge.textContent=selected&&selected.live?"AO VIVO":selected?"NO AR":"RÁDIO";if(!selected){if(!els.audio.paused)els.audio.pause();els.audio.removeAttribute("src");currentSource="";els.state.textContent="Aguardando áudio";return;}if(selected.audioUrl!==currentSource){const wasPlaying=!els.audio.paused;currentSource=selected.audioUrl;els.audio.src=currentSource;els.audio.load();if(wasPlaying)els.audio.play().catch(function(){});}}
-function escapeHtml(v){return String(v==null?"":v).replace(/[&<>"\']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","\'":"&#039;"}[c];});}
-function renderSchedule(){const rows=allSchedule().filter(function(x){return Number(x.endAt||x.startAt)>=Date.now();}).slice(0,8);els.sched.textContent=rows.length?String(rows.length)+" próximo(s)":"";if(!rows.length){els.list.innerHTML="<div class=\"empty\">Ainda não há programação publicada.</div>";return;}els.list.innerHTML=rows.map(function(x){const p=programFor(x)||{};return "<div class=\"schedule-item\"><span>"+fmt(x.startAt)+"</span><strong>"+escapeHtml(p.title||"Programa")+"</strong><span>"+escapeHtml(p.category||"")+"</span></div>";}).join("");}
-async function toggleAudio(){if(!currentSource)return;if(els.audio.paused){try{await els.audio.play();}catch(e){els.state.textContent="Toque novamente para iniciar";}}else els.audio.pause();}els.play.addEventListener("click",toggleAudio);if(els.miniPlay)els.miniPlay.addEventListener("click",toggleAudio);
-els.audio.addEventListener("play",function(){els.play.querySelector(".play-symbol")?els.play.querySelector(".play-symbol").textContent="❚❚":els.play.textContent="❚❚";if(els.miniPlay)els.miniPlay.textContent="❚❚";els.state.textContent="Reproduzindo";});
-els.audio.addEventListener("pause",function(){els.play.querySelector(".play-symbol")?els.play.querySelector(".play-symbol").textContent="▶":els.play.textContent="▶";if(els.miniPlay)els.miniPlay.textContent="▶";els.state.textContent=currentSource?"Pausado":"Aguardando áudio";});
-els.audio.addEventListener("error",function(){els.state.textContent="Não foi possível reproduzir esta fonte de áudio";});
-els.volume.addEventListener("input",function(){els.audio.volume=Number(els.volume.value);});els.audio.volume=Number(els.volume.value);
-db.ref(ROOT+"/live").on("value",function(s){live=normalized(s.val());applyPlayer();});
-db.ref(ROOT+"/programs").on("value",function(s){programs=normalized(s.val());applyPlayer();renderSchedule();});
-db.ref(ROOT+"/schedule").on("value",function(s){schedule=normalized(s.val());applyPlayer();renderSchedule();});
-db.ref(".info/connected").on("value",function(s){els.conn.textContent=s.val()?"Conectado":"Sem conexão";});
-setInterval(function(){applyPlayer();renderSchedule();},30000);
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id), C = window.HimundimRadio;
+  const audio = $("audio"), play = $("playBtn"), miniPlay = $("miniPlayBtn");
+  const state = $("audioState");
+  if (!C || !window.firebase || !window.HIMUNDIM_FIREBASE_CONFIG || window.HIMUNDIM_DB_ROOT !== C.ROOT) {
+    state.textContent = "Não foi possível carregar a rádio. Verifique a conexão e recarregue.";
+    $("connectionText").textContent = "Rádio indisponível";
+    $("programLibrary").textContent = "Não foi possível consultar os programas.";
+    return;
+  }
+  const db = firebase.initializeApp(window.HIMUNDIM_FIREBASE_CONFIG).database();
+  let live = {}, programs = {}, schedule = {}, config = {}, current = null, currentKey = "";
+  let manualId = "", wantsPlayback = false, boundaryTimer = null, connected = false;
+  const loaded = new Set(), failures = new Set();
+  try {
+    const saved = localStorage.getItem("himundim-volume");
+    if (saved !== null && Number.isFinite(Number(saved))) $("volume").value = Math.max(0, Math.min(1, Number(saved)));
+  } catch (_) {}
+  audio.volume = Number($("volume").value);
+  function source() { return C.selectSource({ live, programs, schedule, config, manualId }); }
+  function controls() {
+    const playing = !audio.paused && !audio.ended;
+    play.querySelector(".play-symbol").textContent = playing ? "❚❚" : "▶";
+    play.querySelector(".play-copy").textContent = playing ? "PAUSAR" : "OUVIR AGORA";
+    play.setAttribute("aria-label", playing ? "Pausar áudio" : "Ouvir áudio");
+    play.setAttribute("aria-pressed", String(playing));
+    miniPlay.textContent = playing ? "❚❚" : "▶";
+    miniPlay.setAttribute("aria-label", playing ? "Pausar áudio" : "Ouvir áudio");
+    if ("mediaSession" in navigator) {
+      try { navigator.mediaSession.playbackState = playing ? "playing" : current ? "paused" : "none"; } catch (_) {}
+    }
+  }
+  async function startPlayback() {
+    if (!current) return;
+    wantsPlayback = true;
+    const expectedKey = currentKey;
+    state.textContent = "Carregando áudio…";
+    $("retryAudioBtn").hidden = true;
+    try { await audio.play(); }
+    catch (error) {
+      if (expectedKey !== currentKey || error.name === "AbortError") return;
+      wantsPlayback = false;
+      state.textContent = error.name === "NotAllowedError" ? "Toque em Ouvir agora para iniciar." : "O áudio não pôde ser iniciado. Confira sua conexão ou tente novamente.";
+      $("retryAudioBtn").hidden = false;
+      controls();
+    }
+  }
+  function pausePlayback() {
+    wantsPlayback = false;
+    audio.pause();
+    controls();
+  }
+  function togglePlayback() { if (audio.paused || audio.ended) startPlayback(); else pausePlayback(); }
+  function updateMetadata() {
+    if (!("mediaSession" in navigator) || !("MediaMetadata" in window)) return;
+    try {
+      navigator.mediaSession.metadata = current ? new MediaMetadata({
+        title: current.title || "Rádio Hi-Mundim", artist: config.stationName || "Rádio Hi-Mundim", album: current.kind === "library" ? "Programas da rádio" : "No ar"
+      }) : null;
+    } catch (_) {}
+  }
+  function applyPlayer() {
+    current = source();
+    const badge = current ? ({ live: "AO VIVO", schedule: "NO AR", continuous: "RÁDIO", library: "ACERVO" }[current.kind]) : "FORA DO AR";
+    $("liveBadge").textContent = badge;
+    $("liveBadge").classList.toggle("on", !!current);
+    $("miniBadge").textContent = badge;
+    $("player-title").textContent = current ? (current.title || "Programa Hi-Mundim") : (config.tagline || "O guia do tempo livre, agora também para ouvir.");
+    $("nowDescription").textContent = current ? (current.description || "Acompanhe a Rádio Hi-Mundim.") : "A rádio está fora do ar. Ouça os programas publicados no acervo ou confira os próximos horários.";
+    $("miniTitle").textContent = current ? (current.title || "Programa Hi-Mundim") : "Fora do ar";
+    play.disabled = !current; miniPlay.disabled = !current;
+    $("returnRadioBtn").hidden = !manualId;
+    $("audioProgress").hidden = !current || current.kind !== "library";
+    document.querySelectorAll("[data-station-name]").forEach(el => { el.textContent = config.stationName || "Rádio Hi-Mundim"; });
+    const nextKey = current ? [current.kind, current.id, current.audioUrl].join("|") : "";
+    if (nextKey !== currentKey) {
+      currentKey = nextKey;
+      $("retryAudioBtn").hidden = true;
+      if (!current) {
+        wantsPlayback = false;
+        audio.pause(); audio.removeAttribute("src"); audio.load();
+        state.textContent = loaded.has("live") && loaded.has("schedule") && loaded.has("config") ? "Aguardando transmissão" : "Consultando a rádio…";
+      } else {
+        audio.src = current.audioUrl; audio.load();
+        state.textContent = "Pronto para ouvir";
+        if (wantsPlayback) startPlayback();
+      }
+      updateMetadata();
+      controls();
+    } else updateMetadata();
+    if (!current && failures.size === 0) state.textContent = loaded.has("live") && loaded.has("schedule") && loaded.has("config") ? "Aguardando transmissão" : "Consultando a rádio…";
+    planBoundary();
+  }
+  function planBoundary() {
+    clearTimeout(boundaryTimer);
+    const now = Date.now();
+    const boundaries = C.playableSchedule(schedule, programs).flatMap(s => [Number(s.startAt), Number(s.endAt)]).filter(t => Number.isFinite(t) && t > now);
+    if (boundaries.length) boundaryTimer = setTimeout(() => { applyPlayer(); renderSchedule(); }, Math.min(2147483000, Math.max(100, Math.min(...boundaries) - now + 50)));
+  }
+  function renderSchedule() {
+    if (failures.has("programs") || failures.has("schedule")) {
+      $("scheduleStatus").textContent = "Consulta indisponível";
+      $("scheduleList").innerHTML = '<p class="schedule-empty">Não foi possível consultar a programação. Recarregue a página após verificar a conexão.</p>';
+      return;
+    }
+    const now = Date.now();
+    const rows = C.playableSchedule(schedule, programs).filter(s => !s.endAt || Number(s.endAt) > now).slice(0, 12);
+    $("scheduleStatus").textContent = rows.length ? "Horário de Brasília" : "";
+    $("scheduleList").innerHTML = rows.length ? rows.map(s => {
+      const p = programs[s.programId], active = Number(s.startAt) <= now && (!s.endAt || Number(s.endAt) > now);
+      return '<article class="schedule-item"><span>' + C.escape(C.formatDate(s.startAt)) + (s.endAt ? '<small>Até ' + C.escape(C.formatDate(s.endAt)) + '</small>' : "") + '</span><strong>' + C.escape(p.title || "Programa") + '</strong><span>' + C.escape(p.category || "Especial") + (active ? ' <b class="schedule-on">NO AR</b>' : "") + '</span></article>';
+    }).join("") : '<p class="schedule-empty">' + (loaded.has("schedule") && loaded.has("programs") ? "Ainda não há próximos horários publicados. Os programas disponíveis estão no acervo." : "Consultando programação…") + '</p>';
+  }
+  function renderLibrary() {
+    if (failures.has("programs")) { $("programLibrary").innerHTML = '<p class="library-empty">Não foi possível consultar os programas. Verifique a conexão e recarregue.</p>'; return; }
+    const all = C.publishedPrograms(programs).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+    const query = $("programSearch").value.trim().toLocaleLowerCase("pt-BR"), category = $("categoryFilter").value;
+    const rows = all.filter(p => (!category || p.category === category) && (String(p.title || "") + " " + String(p.description || "")).toLocaleLowerCase("pt-BR").includes(query));
+    $("libraryCount").textContent = all.length ? all.length + (all.length === 1 ? " programa" : " programas") : "";
+    $("programLibrary").innerHTML = rows.length ? rows.map(p => '<article class="program-card"><span class="category">' + C.escape(p.category || "Especial") + '</span><h3>' + C.escape(p.title || "Programa") + '</h3><p>' + C.escape(p.description || "Ouça este programa da Rádio Hi-Mundim.") + '</p><button type="button" data-listen="' + C.escape(p.id) + '" aria-label="Ouvir ' + C.escape(p.title || "programa") + '" aria-pressed="' + String(manualId === p.id) + '">' + (manualId === p.id ? "▶ Programa selecionado" : "▶ Ouvir programa") + '</button></article>').join("") : '<p class="library-empty">' + (!loaded.has("programs") ? "Carregando programas…" : all.length ? "Nenhum programa encontrado para esse filtro." : "Os programas publicados pela rádio aparecerão aqui.") + '</p>';
+  }
+  function connectionStatus() {
+    $("connectionText").textContent = failures.size ? "Falha ao consultar rádio" : connected ? "Conectado" : "Sem conexão";
+  }
+  function subscribe(node, assign) {
+    db.ref(C.ROOT + "/" + node).on("value", snapshot => {
+      loaded.add(node); failures.delete(node);
+      assign(C.record(snapshot.val()));
+      if (manualId && loaded.has("programs") && !C.publishedPrograms(programs).some(p => p.id === manualId)) manualId = "";
+      connectionStatus(); applyPlayer(); renderSchedule(); renderLibrary();
+    }, () => {
+      failures.add(node); loaded.add(node); connectionStatus(); renderSchedule(); renderLibrary();
+      if (!current) state.textContent = "Não foi possível consultar a rádio. Verifique a conexão e recarregue.";
+    });
+  }
+  subscribe("live", value => { live = value; });
+  subscribe("programs", value => { programs = value; });
+  subscribe("schedule", value => { schedule = value; });
+  subscribe("config", value => { config = value; });
+  db.ref(".info/connected").on("value", snapshot => { connected = snapshot.val() === true; connectionStatus(); });
+  play.addEventListener("click", togglePlayback); miniPlay.addEventListener("click", togglePlayback);
+  $("returnRadioBtn").onclick = () => { manualId = ""; applyPlayer(); renderLibrary(); };
+  $("programLibrary").addEventListener("click", event => {
+    const button = event.target.closest("button[data-listen]");
+    if (!button) return;
+    manualId = button.dataset.listen;
+    applyPlayer(); renderLibrary(); startPlayback();
+    $("radio").scrollIntoView({ block: "start" });
+  });
+  $("programSearch").addEventListener("input", renderLibrary);
+  $("categoryFilter").addEventListener("change", renderLibrary);
+  $("retryAudioBtn").onclick = () => { if (current) { audio.load(); startPlayback(); } };
+  $("volume").addEventListener("input", () => {
+    audio.volume = Number($("volume").value);
+    try { localStorage.setItem("himundim-volume", $("volume").value); } catch (_) {}
+  });
+  audio.addEventListener("play", () => { state.textContent = "Reproduzindo"; controls(); });
+  audio.addEventListener("pause", () => { if (current && !audio.ended) state.textContent = "Pausado"; controls(); });
+  audio.addEventListener("playing", () => { state.textContent = "Reproduzindo"; $("retryAudioBtn").hidden = true; controls(); });
+  audio.addEventListener("waiting", () => { if (wantsPlayback) state.textContent = "Carregando áudio…"; });
+  audio.addEventListener("ended", () => { wantsPlayback = false; state.textContent = "Programa encerrado"; controls(); });
+  audio.addEventListener("error", () => {
+    if (!current) return;
+    wantsPlayback = false;
+    state.textContent = "Esta fonte de áudio está indisponível ou usa um formato incompatível.";
+    $("retryAudioBtn").hidden = false;
+    controls();
+  });
+  audio.addEventListener("loadedmetadata", () => {
+    if (current && current.kind === "schedule" && Number.isFinite(audio.duration)) {
+      const elapsed = Math.max(0, (Date.now() - current.startAt) / 1000);
+      if (elapsed < audio.duration) { try { audio.currentTime = elapsed; } catch (_) {} }
+    }
+  });
+  function time(seconds) { const n = Math.max(0, Math.floor(Number(seconds) || 0)); return Math.floor(n / 60) + ":" + String(n % 60).padStart(2, "0"); }
+  audio.addEventListener("timeupdate", () => {
+    if (!current || current.kind !== "library" || !Number.isFinite(audio.duration) || !audio.duration) return;
+    $("audioSeek").value = (audio.currentTime / audio.duration) * 100;
+    $("audioTime").textContent = time(audio.currentTime) + " / " + time(audio.duration);
+  });
+  $("audioSeek").addEventListener("input", () => {
+    if (current && current.kind === "library" && Number.isFinite(audio.duration)) audio.currentTime = (Number($("audioSeek").value) / 100) * audio.duration;
+  });
+  $("shareRadioBtn").onclick = async () => {
+    const share = { title: config.stationName || "Rádio Hi-Mundim", text: "Ouça a Rádio Hi-Mundim", url: location.origin + "/#radio" };
+    try {
+      if (navigator.share) await navigator.share(share);
+      else if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(share.url); state.textContent = "Link da rádio copiado.";
+      } else state.textContent = "Copie o endereço desta página para compartilhar a rádio.";
+    } catch (error) { if (error.name !== "AbortError") state.textContent = "Não foi possível compartilhar. Copie o endereço desta página."; }
+  };
+  if ("mediaSession" in navigator) {
+    try { navigator.mediaSession.setActionHandler("play", startPlayback); navigator.mediaSession.setActionHandler("pause", pausePlayback); navigator.mediaSession.setActionHandler("stop", pausePlayback); } catch (_) {}
+  }
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { applyPlayer(); renderSchedule(); } });
+  controls();
 })();

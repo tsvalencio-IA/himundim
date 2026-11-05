@@ -1,15 +1,70 @@
 <!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111111"><title>Hi-Mundim | Rádio Admin</title><link rel="stylesheet" href="/styles.css"></head>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f15a2b">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Estúdio | Rádio Hi-Mundim</title>
+  <script src="/ui.js"></script>
+  <link rel="stylesheet" href="/styles.css">
+</head>
 <body class="admin-body">
-<header class="topbar"><a class="brand" href="/"><span class="brand-kicker">HI-MUNDIM</span><strong>RÁDIO ADMIN</strong></a><button id="logoutBtn" class="btn secondary hidden" type="button">Sair</button></header>
-<main class="admin-shell">
-<section id="loginCard" class="admin-card" style="max-width:520px;margin:40px auto"><h2>Entrar no estúdio</h2><div id="loginStatus" class="status-box">Use o usuário administrador do Firebase.</div><div class="form-grid"><div class="field full"><label>E-mail</label><input id="email" type="email" autocomplete="username"></div><div class="field full"><label>Senha</label><input id="password" type="password" autocomplete="current-password"></div></div><div class="btn-row"><button id="loginBtn" class="btn" type="button">Entrar</button></div></section>
-<section id="studio" class="hidden"><div id="adminStatus" class="status-box">Carregando rádio…</div><div class="admin-grid">
-<section class="admin-card"><h2>Ao vivo / fonte imediata</h2><div class="form-grid"><div class="field full"><label>Título no ar</label><input id="liveTitle" placeholder="Ex.: Hi-Mundim ao vivo"></div><div class="field full"><label>URL direta do áudio/stream</label><input id="liveAudioUrl" type="url" placeholder="https://..."></div><div class="field full"><label>Descrição</label><textarea id="liveDescription"></textarea></div></div><div class="btn-row"><button id="liveOnBtn" class="btn">Colocar no ar</button><button id="liveOffBtn" class="btn danger">Encerrar transmissão</button></div></section>
-<section class="admin-card"><h2>Cadastrar programa</h2><div class="form-grid"><div class="field full"><label>Título</label><input id="programTitle"></div><div class="field"><label>Categoria</label><select id="programCategory"><option>Caminhos</option><option>Sabores</option><option>Balaio</option><option>Especial</option></select></div><div class="field"><label>Publicado</label><select id="programPublished"><option value="true">Sim</option><option value="false">Não</option></select></div><div class="field full"><label>URL direta do áudio</label><input id="programAudioUrl" type="url"></div><div class="field full"><label>Descrição</label><textarea id="programDescription"></textarea></div></div><div class="btn-row"><button id="saveProgramBtn" class="btn">Salvar programa</button></div></section>
-<section class="admin-card"><h2>Agendar programa</h2><div class="form-grid"><div class="field full"><label>Programa</label><select id="scheduleProgram"></select></div><div class="field"><label>Início</label><input id="scheduleStart" type="datetime-local"></div><div class="field"><label>Fim</label><input id="scheduleEnd" type="datetime-local"></div></div><div class="btn-row"><button id="saveScheduleBtn" class="btn">Adicionar à programação</button></div></section>
-<section class="admin-card"><h2>Estado da rádio</h2><div id="liveState" class="status-box">—</div><div id="scheduleAdminList" class="admin-list"></div></section>
-<section class="admin-card full"><h2>Biblioteca de programas</h2><div id="programAdminList" class="admin-list"></div></section>
-</div></section></main>
-<script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-auth-compat.js"></script><script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-database-compat.js"></script><script src="/firebase-config.js"></script><script src="/admin/admin.js"></script>
-</body></html>
+  <a class="skip-link" href="#main">Pular para o conteúdo</a>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Página da Rádio Hi-Mundim"><span>hi-mundim<small>RÁDIO · ESTÚDIO</small></span></a>
+    <div class="header-actions"><a class="btn secondary compact" href="/" target="_blank" rel="noopener">Abrir rádio ↗</a><button class="btn secondary compact theme-toggle" type="button">Tema escuro</button><button id="logoutBtn" class="btn compact hidden" type="button">Sair</button></div>
+  </header>
+  <main id="main" class="admin-shell">
+    <section id="loginCard" class="login-layout" aria-label="Acesso ao estúdio">
+      <div class="login-intro"><p class="eyebrow">RÁDIO HI-MUNDIM</p><h1>Seu estúdio.<br>Do seu jeito.</h1><p>Organize programas, prepare a agenda e escolha o que o público vai ouvir.</p><div class="intro-mark" aria-hidden="true">HI<span>ON AIR</span></div></div>
+      <div class="login-panel">
+        <p class="eyebrow">ACESSO ADMINISTRATIVO</p><h2>Entrar no estúdio</h2>
+        <p class="muted">Use a conta de administrador já cadastrada no Firebase da rádio.</p>
+        <div id="loginStatus" class="status-box" role="status" aria-live="polite">Verificando sessão…</div>
+        <form id="loginForm">
+          <div class="field"><label for="email">E-mail do administrador</label><input id="email" name="email" type="email" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="Seu e-mail cadastrado"></div>
+          <div class="field"><label for="password">Senha</label><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required><button id="showPassword" class="text-button" type="button" aria-pressed="false" aria-controls="password">Mostrar</button></div></div>
+          <label class="check-row"><input id="rememberSession" type="checkbox"> Continuar conectado neste dispositivo</label>
+          <button id="loginBtn" class="btn wide" type="submit">Entrar no estúdio →</button>
+          <button id="resetPasswordBtn" class="text-button recovery-button" type="button">Esqueci minha senha</button>
+          <p class="recovery-note">A redefinição muda a senha desta mesma conta nas outras aplicações que usam o Firebase da rádio.</p>
+        </form>
+        <details class="access-help"><summary>Não sei qual é meu e-mail de administrador</summary><p>O painel usa uma conta específica já existente. Para identificar o e-mail:</p><ol><li>Abra o Firebase do projeto <strong>biblia-radio</strong>.</li><li>Entre em <strong>Authentication → Users</strong> (ou Autenticação → Usuários).</li><li>Localize o usuário com este UID e confira o e-mail da mesma linha.</li></ol><code class="uid">C19UZ7R1OSRaAGZ3XSXfBFaUzMD2</code><a class="help-link" href="https://console.firebase.google.com/project/biblia-radio/authentication/users" target="_blank" rel="noopener">Abrir cadastro de usuários no Firebase ↗</a><p>Depois, informe esse e-mail acima e use <strong>Esqueci minha senha</strong>. Se o UID não existir, é preciso corrigir a configuração da conta e das permissões antes de entrar.</p></details>
+      </div>
+    </section>
+
+    <section id="studio" class="hidden" aria-label="Estúdio administrativo">
+      <div class="studio-heading"><div><p class="eyebrow">PAINEL DE CONTROLE</p><h1>Bom programa começa aqui.</h1><p id="sessionEmail" class="muted"></p></div><span id="connectionState" class="state-pill">Conectando…</span></div>
+      <div id="adminStatus" class="status-box" role="status" aria-live="polite">Carregando rádio…</div>
+      <div class="metrics"><div><small>ESTADO DA RÁDIO</small><strong id="metricAir">—</strong></div><div><small>PROGRAMAS PUBLICADOS</small><strong id="metricPrograms">0</strong></div><div><small>PRÓXIMOS HORÁRIOS</small><strong id="metricSchedule">0</strong></div></div>
+      <nav class="studio-nav" aria-label="Seções do estúdio"><a href="#settings">Configuração</a><a href="#broadcast">Transmissão</a><a href="#programEditor">Programas</a><a href="#agenda">Agenda</a><a href="#library">Biblioteca</a></nav>
+      <div class="admin-grid">
+        <section id="settings" class="admin-card full"><div class="card-heading"><div><p class="eyebrow">01 · CONFIGURAR</p><h2>Identidade e áudio contínuo</h2></div><span class="tag">Rádio Hi-Mundim</span></div><p class="muted">A fonte contínua toca quando não houver transmissão imediata nem programa no horário.</p>
+          <form id="configForm"><div class="form-grid"><div class="field"><label for="stationName">Nome da rádio</label><input id="stationName" maxlength="100" required value="Rádio Hi-Mundim"></div><div class="field"><label for="stationTagline">Mensagem da rádio</label><input id="stationTagline" maxlength="240" placeholder="O guia do tempo livre, agora também para ouvir."></div><div class="field"><label for="continuousTitle">Título do áudio contínuo</label><input id="continuousTitle" maxlength="160" placeholder="Programação Hi-Mundim"></div><div class="field"><label for="continuousAudioUrl">Link HTTPS do áudio contínuo</label><input id="continuousAudioUrl" type="url" placeholder="https://servidor/stream" inputmode="url"></div></div><label class="check-row"><input id="continuousEnabled" type="checkbox"> Ativar áudio contínuo entre os programas</label><div class="btn-row"><button class="btn" type="submit">Salvar configuração</button><button class="btn secondary" data-preview="continuousAudioUrl" type="button">Testar áudio</button></div></form>
+        </section>
+        <section id="broadcast" class="admin-card"><p class="eyebrow">02 · TRANSMITIR</p><h2>Fonte imediata</h2><p class="muted">O link publicado aqui tem prioridade sobre a agenda e a fonte contínua. É necessário um servidor de áudio ou arquivo já disponível por HTTPS.</p><div id="liveState" class="status-box">—</div>
+          <form id="liveForm"><div class="form-grid"><div class="field full"><label for="liveTitle">Título no ar</label><input id="liveTitle" maxlength="160" placeholder="Hi-Mundim ao vivo" required></div><div class="field full"><label for="liveAudioUrl">Link direto do áudio / stream</label><input id="liveAudioUrl" type="url" inputmode="url" placeholder="https://servidor/stream" required></div><div class="field full"><label for="liveDescription">Descrição</label><textarea id="liveDescription" maxlength="1500"></textarea></div></div><div class="btn-row"><button id="liveOnBtn" class="btn" type="submit">Colocar no ar</button><button class="btn secondary" data-preview="liveAudioUrl" type="button">Testar áudio</button><button id="liveOffBtn" class="btn danger" type="button">Encerrar transmissão</button></div></form>
+        </section>
+        <section id="programEditor" class="admin-card"><p class="eyebrow">03 · PREPARAR</p><h2 id="programFormTitle">Cadastrar programa</h2><p class="muted">Salve o áudio na biblioteca para publicar, ouvir e agendar.</p>
+          <form id="programForm"><input id="programId" type="hidden"><div class="form-grid"><div class="field full"><label for="programTitle">Título</label><input id="programTitle" maxlength="160" required></div><div class="field"><label for="programCategory">Categoria</label><select id="programCategory"><option>Caminhos</option><option>Sabores</option><option>Balaio</option><option>Especial</option></select></div><div class="field"><label for="programPublished">Visibilidade</label><select id="programPublished"><option value="true">Publicado</option><option value="false">Rascunho</option></select></div><div class="field full"><label for="programAudioUrl">Link HTTPS direto do áudio</label><input id="programAudioUrl" type="url" inputmode="url" required></div><div class="field full"><label for="programDescription">Descrição</label><textarea id="programDescription" maxlength="1500"></textarea></div></div><div class="btn-row"><button id="saveProgramBtn" class="btn" type="submit">Salvar programa</button><button class="btn secondary" data-preview="programAudioUrl" type="button">Testar áudio</button><button id="cancelProgramEdit" class="text-button hidden" type="button">Cancelar edição</button></div></form>
+        </section>
+        <section id="agenda" class="admin-card"><p class="eyebrow">04 · PROGRAMAR</p><h2 id="scheduleFormTitle">Agendar programa</h2><p class="muted">Todos os horários seguem Brasília (São Paulo), mesmo em outro fuso. Horários simultâneos são bloqueados.</p>
+          <form id="scheduleForm"><input id="scheduleId" type="hidden"><div class="form-grid"><div class="field full"><label for="scheduleProgram">Programa publicado</label><select id="scheduleProgram" required><option value="">Selecione…</option></select></div><div class="field"><label for="scheduleStart">Início · Brasília</label><input id="scheduleStart" type="datetime-local" required></div><div class="field"><label for="scheduleEnd">Fim · Brasília</label><input id="scheduleEnd" type="datetime-local" required></div></div><div class="btn-row"><button class="btn" type="submit">Salvar horário</button><button id="cancelScheduleEdit" class="text-button hidden" type="button">Cancelar edição</button></div></form>
+        </section>
+        <section class="admin-card"><p class="eyebrow">PRÓXIMAS ENTRADAS</p><h2>Agenda da rádio</h2><label class="check-row"><input id="showPastSchedule" type="checkbox"> Mostrar também horários encerrados</label><div id="scheduleAdminList" class="admin-list"></div></section>
+        <section id="library" class="admin-card full"><div class="card-heading"><div><p class="eyebrow">ACERVO</p><h2>Biblioteca de programas</h2></div><label class="search-field"><span class="sr-only">Buscar programa</span><input id="adminSearch" type="search" placeholder="Buscar título ou categoria"></label></div><div id="programAdminList" class="admin-list"></div></section>
+      </div>
+      <aside id="previewPanel" class="preview-panel hidden" aria-label="Teste privado de áudio"><div><strong>Teste de áudio</strong><span id="previewStatus" role="status">O teste é ouvido apenas neste dispositivo.</span></div><audio id="previewAudio" controls preload="none"></audio><button id="closePreview" class="btn secondary compact" type="button">Fechar teste</button></aside>
+    </section>
+    <noscript><p class="status-box">Ative o JavaScript para acessar o estúdio.</p></noscript>
+  </main>
+  <footer class="admin-footer">Hi-Mundim · guia do tempo livre <a href="/">Voltar à rádio ↗</a></footer>
+  <script src="/radio-core.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-database-compat.js"></script>
+  <script src="/firebase-config.js"></script>
+  <script src="/admin/admin.js"></script>
+</body>
+</html>

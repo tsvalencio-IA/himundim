@@ -1,19 +1,316 @@
-(()=>{"use strict";
-const ADMIN_UID="C19UZ7R1OSRaAGZ3XSXfBFaUzMD2";
-const app=firebase.initializeApp(window.HIMUNDIM_FIREBASE_CONFIG);const auth=app.auth(),db=app.database(),ROOT=window.HIMUNDIM_DB_ROOT,$=id=>document.getElementById(id);
-let programs={},schedule={};const loginCard=$("loginCard"),studio=$("studio"),logout=$("logoutBtn"),status=$("adminStatus");
-function esc(v){return String(v==null?"":v).replace(/[&<>"\']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","\'":"&#039;"}[c];});}
-function msg(t){status.textContent=t;}
-$("loginBtn").onclick=async function(){try{$("loginStatus").textContent="Entrando…";await auth.signInWithEmailAndPassword($("email").value.trim(),$("password").value);}catch(e){$("loginStatus").textContent="Falha no login: "+(e.message||e.code);}};
-logout.onclick=function(){auth.signOut();};
-auth.onAuthStateChanged(async function(user){const ok=!!user&&user.uid===ADMIN_UID;if(user&&!ok)await auth.signOut();loginCard.classList.toggle("hidden",ok);studio.classList.toggle("hidden",!ok);logout.classList.toggle("hidden",!ok);if(ok)msg("Administrador autenticado. Namespace: "+ROOT);else $("loginStatus").textContent=user?"Usuário sem permissão administrativa.":"Use o usuário administrador do Firebase.";});
-$("liveOnBtn").onclick=async function(){const audioUrl=$("liveAudioUrl").value.trim();if(!audioUrl)return msg("Informe uma URL de áudio/stream.");await db.ref(ROOT+"/live").set({active:true,title:$("liveTitle").value.trim()||"Ao vivo",description:$("liveDescription").value.trim(),audioUrl:audioUrl,startedAt:firebase.database.ServerValue.TIMESTAMP,updatedAt:firebase.database.ServerValue.TIMESTAMP});msg("Fonte ao vivo publicada.");};
-$("liveOffBtn").onclick=async function(){await db.ref(ROOT+"/live").update({active:false,endedAt:firebase.database.ServerValue.TIMESTAMP,updatedAt:firebase.database.ServerValue.TIMESTAMP});msg("Transmissão encerrada.");};
-$("saveProgramBtn").onclick=async function(){const title=$("programTitle").value.trim(),audioUrl=$("programAudioUrl").value.trim();if(!title||!audioUrl)return msg("Título e URL de áudio são obrigatórios.");const ref=db.ref(ROOT+"/programs").push();await ref.set({title:title,category:$("programCategory").value,description:$("programDescription").value.trim(),audioUrl:audioUrl,published:$("programPublished").value==="true",createdAt:firebase.database.ServerValue.TIMESTAMP,updatedAt:firebase.database.ServerValue.TIMESTAMP});$("programTitle").value="";$("programAudioUrl").value="";$("programDescription").value="";msg("Programa salvo.");};
-$("saveScheduleBtn").onclick=async function(){const programId=$("scheduleProgram").value,start=$("scheduleStart").value,end=$("scheduleEnd").value;if(!programId||!start)return msg("Escolha o programa e o início.");const startAt=new Date(start).getTime(),endAt=end?new Date(end).getTime():null;if(!Number.isFinite(startAt)||(endAt&&endAt<=startAt))return msg("Datas inválidas.");await db.ref(ROOT+"/schedule").push().set({programId:programId,startAt:startAt,endAt:endAt,published:true,createdAt:firebase.database.ServerValue.TIMESTAMP});msg("Programa agendado.");};
-function renderPrograms(){const arr=Object.entries(programs).sort(function(a,b){return (b[1].createdAt||0)-(a[1].createdAt||0);});$("scheduleProgram").innerHTML="<option value=\"\">Selecione…</option>"+arr.filter(function(e){return e[1].published!==false;}).map(function(e){return "<option value=\""+e[0]+"\">"+esc(e[1].title)+"</option>";}).join("");$("programAdminList").innerHTML=arr.length?arr.map(function(e){return "<div class=\"admin-list-item\"><div><strong>"+esc(e[1].title)+"</strong><br><small>"+esc(e[1].category||"")+" · "+(e[1].published===false?"oculto":"publicado")+"</small></div><button class=\"btn danger\" data-del-program=\""+e[0]+"\">Excluir</button></div>";}).join(""):"<div class=\"empty\">Nenhum programa cadastrado.</div>";document.querySelectorAll("[data-del-program]").forEach(function(b){b.onclick=async function(){if(confirm("Excluir este programa?"))await db.ref(ROOT+"/programs/"+b.dataset.delProgram).remove();};});}
-function renderSchedule(){const arr=Object.entries(schedule).sort(function(a,b){return (a[1].startAt||0)-(b[1].startAt||0);});$("scheduleAdminList").innerHTML=arr.length?arr.map(function(e){const p=programs[e[1].programId]||{};return "<div class=\"admin-list-item\"><div><strong>"+esc(p.title||"Programa")+"</strong><br><small>"+new Date(e[1].startAt).toLocaleString("pt-BR")+"</small></div><button class=\"btn danger\" data-del-schedule=\""+e[0]+"\">Remover</button></div>";}).join(""):"<div class=\"empty\">Sem agenda.</div>";document.querySelectorAll("[data-del-schedule]").forEach(function(b){b.onclick=function(){db.ref(ROOT+"/schedule/"+b.dataset.delSchedule).remove();};});}
-db.ref(ROOT+"/live").on("value",function(s){const v=s.val()||{};$("liveState").textContent=v.active?"NO AR: "+(v.title||"Ao vivo"):"Fora do ar";if(v.title)$("liveTitle").value=v.title;if(v.audioUrl)$("liveAudioUrl").value=v.audioUrl;if(v.description)$("liveDescription").value=v.description;});
-db.ref(ROOT+"/programs").on("value",function(s){programs=s.val()||{};renderPrograms();renderSchedule();});
-db.ref(ROOT+"/schedule").on("value",function(s){schedule=s.val()||{};renderSchedule();});
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const C = window.HimundimRadio;
+  if (!C || !window.firebase || !window.HIMUNDIM_FIREBASE_CONFIG || window.HIMUNDIM_DB_ROOT !== C.ROOT) {
+    $("loginStatus").textContent = "Não foi possível carregar o acesso. Verifique a conexão e recarregue a página.";
+    return;
+  }
+  const app = firebase.initializeApp(window.HIMUNDIM_FIREBASE_CONFIG);
+  const auth = app.auth(), db = app.database();
+  auth.languageCode = "pt-BR";
+  let programs = {}, schedule = {}, live = {}, config = {}, connected = false, busy = false, denied = false;
+  const subscriptions = [], dirtyForms = new Set();
+  const stamp = () => ({ updatedAt: firebase.database.ServerValue.TIMESTAMP, updatedBy: auth.currentUser.uid });
+  function message(text, error = false, login = false) {
+    const target = $(login ? "loginStatus" : "adminStatus");
+    target.textContent = text;
+    target.dataset.tone = error ? "error" : "info";
+  }
+  function authError(error) {
+    const messages = {
+      "auth/invalid-email": "Confira o e-mail informado.",
+      "auth/invalid-credential": "E-mail ou senha não conferem. Confira o cadastro ou use a recuperação de senha.",
+      "auth/wrong-password": "E-mail ou senha não conferem. Use a recuperação de senha se necessário.",
+      "auth/user-not-found": "Não foi possível entrar com esses dados. Confira o e-mail cadastrado.",
+      "auth/too-many-requests": "Houve muitas tentativas. Aguarde alguns minutos antes de tentar novamente.",
+      "auth/network-request-failed": "Sem comunicação com o serviço de acesso. Verifique a conexão.",
+      "auth/user-disabled": "Esta conta está desativada. Confira o cadastro no Firebase.",
+      "auth/operation-not-allowed": "O acesso por e-mail e senha precisa estar habilitado no Firebase.",
+      "auth/web-storage-unsupported": "O navegador bloqueou o armazenamento necessário para entrar.",
+      "auth/internal-error": "O serviço de acesso não respondeu corretamente. Tente novamente mais tarde."
+    };
+    return messages[error.code] || "Não foi possível concluir o acesso. Verifique a conexão e tente novamente.";
+  }
+  function dataError(error) {
+    return /permission.denied/i.test(error.code || error.message || "") ?
+      "O Firebase recusou esta operação. Confira as permissões da conta para a Rádio Hi-Mundim." :
+      (error.message || "Não foi possível salvar. Verifique a conexão e tente novamente.");
+  }
+  async function run(control, action, success) {
+    if (busy) return message("Aguarde a operação em andamento.");
+    if (!auth.currentUser || auth.currentUser.uid !== C.ADMIN_UID) return message("Entre com a conta de administrador.", true);
+    if (!connected) return message("Sem conexão com o banco. Aguarde reconectar antes de salvar.", true);
+    busy = true;
+    const buttons = control.matches("button") ? [control] : [...control.querySelectorAll("button")];
+    const previous = buttons.map(b => b.disabled);
+    buttons.forEach(b => { b.disabled = true; });
+    control.setAttribute("aria-busy", "true");
+    message("Salvando…");
+    try { await action(); message(success); }
+    catch (error) { message(dataError(error), true); }
+    finally {
+      busy = false;
+      buttons.forEach((b, i) => { b.disabled = previous[i]; });
+      $("liveOffBtn").disabled = !live.active;
+      control.removeAttribute("aria-busy");
+    }
+  }
+  ["configForm", "liveForm"].forEach(id => $(id).addEventListener("input", () => dirtyForms.add(id)));
+  $("showPassword").onclick = () => {
+    const show = $("password").type === "password";
+    $("password").type = show ? "text" : "password";
+    $("showPassword").textContent = show ? "Ocultar" : "Mostrar";
+    $("showPassword").setAttribute("aria-pressed", String(show));
+  };
+  $("loginForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    if ($("loginBtn").disabled) return;
+    $("loginBtn").disabled = true;
+    $("resetPasswordBtn").disabled = true;
+    message("Entrando…", false, true);
+    denied = false;
+    try {
+      await auth.setPersistence($("rememberSession").checked ? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION);
+      await auth.signInWithEmailAndPassword($("email").value.trim(), $("password").value);
+      $("password").value = "";
+    } catch (error) { message(authError(error), true, true); }
+    finally { $("loginBtn").disabled = false; $("resetPasswordBtn").disabled = false; }
+  });
+  $("resetPasswordBtn").onclick = async () => {
+    if (!$("email").value.trim() || !$("email").checkValidity()) {
+      $("email").reportValidity();
+      message("Informe primeiro o e-mail cadastrado. Se não souber, abra a orientação abaixo.", true, true);
+      $("email").focus();
+      return;
+    }
+    $("resetPasswordBtn").disabled = true;
+    $("loginBtn").disabled = true;
+    try {
+      await auth.sendPasswordResetEmail($("email").value.trim());
+      message("Solicitação enviada. Se esse e-mail estiver cadastrado, confira a caixa de entrada e o spam para redefinir a senha.", false, true);
+    } catch (error) {
+      message(error.code === "auth/user-not-found" ? "Se esse e-mail estiver cadastrado, você receberá as instruções de recuperação." : authError(error), error.code !== "auth/user-not-found", true);
+    } finally { $("resetPasswordBtn").disabled = false; $("loginBtn").disabled = false; }
+  };
+  function unsubscribe() { subscriptions.splice(0).forEach(([ref, callback]) => ref.off("value", callback)); }
+  function subscribe(path, callback) {
+    const ref = db.ref(path);
+    ref.on("value", callback, error => message(dataError(error), true));
+    subscriptions.push([ref, callback]);
+  }
+  function closePreview() {
+    $("previewAudio").pause();
+    $("previewAudio").removeAttribute("src");
+    $("previewAudio").load();
+    $("previewPanel").classList.add("hidden");
+  }
+  $("logoutBtn").onclick = async () => {
+    if (busy) return message("Aguarde terminar o salvamento antes de sair.");
+    $("logoutBtn").disabled = true;
+    try { await auth.signOut(); }
+    catch (_) { message("Não foi possível sair. Tente novamente.", true); }
+    finally { $("logoutBtn").disabled = false; }
+  };
+  auth.onAuthStateChanged(async user => {
+    unsubscribe();
+    const allowed = !!user && user.uid === C.ADMIN_UID;
+    $("loginCard").classList.toggle("hidden", allowed);
+    $("studio").classList.toggle("hidden", !allowed);
+    $("logoutBtn").classList.toggle("hidden", !allowed);
+    if (user && !allowed) {
+      denied = true;
+      message("Esta conta não é a administradora da rádio. Confira o e-mail do UID indicado abaixo.", true, true);
+      try { await auth.signOut(); } catch (_) {}
+      return;
+    }
+    if (!allowed) {
+      closePreview();
+      programs = {}; schedule = {}; live = {}; config = {}; connected = false;
+      dirtyForms.clear();
+      resetProgram(); resetSchedule();
+      $("configForm").reset(); $("liveForm").reset();
+      $("sessionEmail").textContent = "";
+      $("password").value = "";
+      if (!denied) message("Entre com o e-mail e a senha da conta cadastrada. Se precisar, use as opções de recuperação abaixo.", false, true);
+      return;
+    }
+    $("sessionEmail").textContent = user.email || "Administrador autenticado";
+    message("Administrador autenticado. Carregando a rádio…");
+    subscribe(".info/connected", snapshot => {
+      connected = snapshot.val() === true;
+      $("connectionState").textContent = connected ? "● Conectado" : "Sem conexão";
+      $("connectionState").dataset.connected = String(connected);
+    });
+    subscribe(C.ROOT + "/config", snapshot => {
+      config = C.record(snapshot.val());
+      if (!dirtyForms.has("configForm")) {
+        $("stationName").value = config.stationName || "Rádio Hi-Mundim";
+        $("stationTagline").value = config.tagline || "";
+        $("continuousTitle").value = config.continuousTitle || "";
+        $("continuousAudioUrl").value = config.continuousAudioUrl || "";
+        $("continuousEnabled").checked = config.continuousEnabled === true;
+      }
+      updateMetrics();
+    });
+    subscribe(C.ROOT + "/live", snapshot => {
+      live = C.record(snapshot.val());
+      $("liveState").textContent = live.active ? "Fonte imediata publicada: " + (live.title || "Ao vivo") : "Nenhuma fonte imediata ativa.";
+      $("liveOffBtn").disabled = !live.active;
+      if (!dirtyForms.has("liveForm")) {
+        $("liveTitle").value = live.title || "";
+        $("liveAudioUrl").value = live.audioUrl || "";
+        $("liveDescription").value = live.description || "";
+      }
+      updateMetrics();
+    });
+    subscribe(C.ROOT + "/programs", snapshot => {
+      programs = C.record(snapshot.val());
+      renderPrograms(); renderSchedule(); updateMetrics();
+    });
+    subscribe(C.ROOT + "/schedule", snapshot => {
+      schedule = C.record(snapshot.val());
+      renderSchedule(); updateMetrics();
+    });
+    message("Estúdio pronto. Configure uma fonte de áudio ou cadastre seu primeiro programa.");
+  }, () => message("Não foi possível verificar a sessão. Recarregue a página.", true, true));
+  function updateMetrics() {
+    const source = C.selectSource({ live, config, programs, schedule });
+    $("metricAir").textContent = source ? (source.kind === "live" ? "Ao vivo" : source.kind === "schedule" ? "Programa no ar" : "Áudio contínuo") : "Fora do ar";
+    $("metricPrograms").textContent = C.publishedPrograms(programs).length;
+    $("metricSchedule").textContent = C.playableSchedule(schedule, programs).filter(s => !s.endAt || Number(s.endAt) > Date.now()).length;
+  }
+  $("configForm").addEventListener("submit", event => {
+    event.preventDefault();
+    run(event.currentTarget, async () => {
+      const enabled = $("continuousEnabled").checked, rawUrl = $("continuousAudioUrl").value.trim();
+      const stationName = $("stationName").value.trim();
+      if (!stationName) throw new Error("Informe o nome da rádio.");
+      const url = (rawUrl || enabled) ? C.requireAudio(rawUrl) : "";
+      await db.ref(C.ROOT + "/config").update({ stationName, tagline: $("stationTagline").value.trim(), continuousTitle: $("continuousTitle").value.trim(), continuousAudioUrl: url, continuousEnabled: enabled, ...stamp() });
+      dirtyForms.delete("configForm");
+    }, "Configuração salva.");
+  });
+  $("liveForm").addEventListener("submit", event => {
+    event.preventDefault();
+    run(event.currentTarget, async () => {
+      const title = $("liveTitle").value.trim();
+      if (!title) throw new Error("Informe o título da transmissão.");
+      await db.ref(C.ROOT + "/live").update({ active: true, title, description: $("liveDescription").value.trim(), audioUrl: C.requireAudio($("liveAudioUrl").value), startedAt: live.active ? (live.startedAt || firebase.database.ServerValue.TIMESTAMP) : firebase.database.ServerValue.TIMESTAMP, ...stamp() });
+      dirtyForms.delete("liveForm");
+    }, "Fonte imediata publicada. Abra a rádio para ouvir.");
+  });
+  $("liveOffBtn").onclick = () => {
+    if (!live.active || !confirm("Encerrar a fonte imediata? A rádio voltará para a agenda ou para o áudio contínuo configurado.")) return;
+    run($("liveOffBtn"), () => db.ref(C.ROOT + "/live").update({ active: false, endedAt: firebase.database.ServerValue.TIMESTAMP, ...stamp() }), "Fonte imediata encerrada.");
+  };
+  function resetProgram() {
+    $("programForm").reset(); $("programId").value = "";
+    $("programFormTitle").textContent = "Cadastrar programa";
+    $("cancelProgramEdit").classList.add("hidden");
+  }
+  function resetSchedule() {
+    $("scheduleForm").reset(); $("scheduleId").value = "";
+    $("scheduleFormTitle").textContent = "Agendar programa";
+    $("cancelScheduleEdit").classList.add("hidden");
+  }
+  $("cancelProgramEdit").onclick = resetProgram;
+  $("cancelScheduleEdit").onclick = resetSchedule;
+  $("programForm").addEventListener("submit", event => {
+    event.preventDefault();
+    run(event.currentTarget, async () => {
+      const id = $("programId").value, title = $("programTitle").value.trim();
+      if (!title) throw new Error("Informe o título do programa.");
+      if (id && !programs[id]) throw new Error("Este programa foi removido. Cancele a edição e atualize a biblioteca.");
+      const ref = id ? db.ref(C.ROOT + "/programs/" + id) : db.ref(C.ROOT + "/programs").push();
+      const values = { title, category: $("programCategory").value, description: $("programDescription").value.trim(), audioUrl: C.requireAudio($("programAudioUrl").value), published: $("programPublished").value === "true", ...stamp() };
+      if (!id) { values.createdAt = firebase.database.ServerValue.TIMESTAMP; values.createdBy = auth.currentUser.uid; }
+      await ref.update(values);
+      resetProgram();
+    }, "Programa salvo.");
+  });
+  $("scheduleForm").addEventListener("submit", event => {
+    event.preventDefault();
+    run(event.currentTarget, async () => {
+      const programId = $("scheduleProgram").value, id = $("scheduleId").value;
+      const startAt = C.fromLocalInput($("scheduleStart").value), endAt = C.fromLocalInput($("scheduleEnd").value);
+      if (!programs[programId] || programs[programId].published === false) throw new Error("Selecione um programa publicado.");
+      if (!Number.isFinite(startAt) || !Number.isFinite(endAt) || endAt <= startAt) throw new Error("Informe início e fim válidos. O fim precisa ser depois do início.");
+      if (endAt <= Date.now()) throw new Error("O horário informado já terminou.");
+      const key = id || db.ref(C.ROOT + "/schedule").push().key;
+      const candidate = { programId, startAt, endAt, published: true, ...stamp() };
+      const result = await db.ref(C.ROOT + "/schedule").transaction(current => {
+        const rows = C.record(current);
+        if (id && !rows[id]) return;
+        if (C.hasOverlap(candidate, rows, id)) return;
+        return { ...rows, [key]: { ...C.record(rows[key]), ...candidate, ...(!id ? { createdAt: firebase.database.ServerValue.TIMESTAMP, createdBy: auth.currentUser.uid } : {}) } };
+      }, undefined, false);
+      if (!result.committed) throw new Error("O horário conflita com outro programa ou foi alterado em outra sessão. Confira a agenda antes de salvar.");
+      resetSchedule();
+    }, "Horário salvo na programação.");
+  });
+  function renderPrograms() {
+    const selected = $("scheduleProgram").value;
+    $("scheduleProgram").innerHTML = '<option value="">Selecione…</option>' + C.publishedPrograms(programs).map(p => '<option value="' + C.escape(p.id) + '">' + C.escape(p.title) + '</option>').join("");
+    $("scheduleProgram").value = selected;
+    const query = $("adminSearch").value.trim().toLocaleLowerCase("pt-BR");
+    const rows = C.entries(programs).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0)).filter(p => (String(p.title || "") + " " + String(p.category || "")).toLocaleLowerCase("pt-BR").includes(query));
+    $("programAdminList").innerHTML = rows.length ? rows.map(p => '<article class="admin-list-item"><div class="item-copy"><span class="tag">' + C.escape(p.category || "Especial") + '</span><h3>' + C.escape(p.title || "Sem título") + '</h3><p>' + C.escape(p.description || "Sem descrição.") + '</p><small>' + (p.published === false ? "Rascunho" : "Publicado") + '</small></div><div class="item-actions"><button class="btn secondary compact" data-action="edit-program" data-id="' + C.escape(p.id) + '">Editar</button><button class="btn secondary compact" data-action="preview-program" data-id="' + C.escape(p.id) + '">Ouvir teste</button><button class="btn secondary compact" data-action="toggle-program" data-id="' + C.escape(p.id) + '">' + (p.published === false ? "Publicar" : "Ocultar") + '</button><button class="btn danger compact" data-action="delete-program" data-id="' + C.escape(p.id) + '">Excluir</button></div></article>').join("") : '<p class="empty">' + (query ? "Nenhum programa encontrado." : "Sua biblioteca está vazia. Cadastre o primeiro programa acima.") + '</p>';
+  }
+  function renderSchedule() {
+    const all = C.entries(schedule).sort((a, b) => Number(a.startAt || 0) - Number(b.startAt || 0));
+    const rows = all.filter(s => $("showPastSchedule").checked || !s.endAt || Number(s.endAt) > Date.now());
+    $("scheduleAdminList").innerHTML = rows.length ? rows.map(s => {
+      const p = programs[s.programId], past = s.endAt && Number(s.endAt) <= Date.now();
+      return '<article class="admin-list-item"><div class="item-copy"><h3>' + C.escape(p && p.title || "Programa indisponível") + '</h3><p>' + C.escape(C.formatDate(s.startAt)) + '<br>Até ' + C.escape(s.endAt ? C.formatDate(s.endAt) : "sem fim definido") + '</p><small>' + (past ? "Encerrado" : !p || p.published === false ? "Não será reproduzido: programa indisponível" : "Programado") + '</small></div><div class="item-actions"><button class="btn secondary compact" data-action="edit-schedule" data-id="' + C.escape(s.id) + '">Editar</button><button class="btn danger compact" data-action="delete-schedule" data-id="' + C.escape(s.id) + '">Remover</button></div></article>';
+    }).join("") : '<p class="empty">Nenhum horário ' + ($("showPastSchedule").checked ? "cadastrado." : "pendente. Monte sua agenda ao lado.") + '</p>';
+  }
+  $("adminSearch").addEventListener("input", renderPrograms);
+  $("showPastSchedule").addEventListener("change", renderSchedule);
+  function preview(url) {
+    try {
+      $("previewAudio").src = C.requireAudio(url);
+      $("previewPanel").classList.remove("hidden");
+      $("previewStatus").textContent = "O teste é ouvido apenas neste dispositivo.";
+      $("previewAudio").play().catch(() => { $("previewStatus").textContent = "Use o controle de áudio para iniciar. Se não tocar, confira se o link é de áudio direto."; });
+    } catch (error) { message(error.message, true); }
+  }
+  document.querySelectorAll("[data-preview]").forEach(button => button.onclick = () => preview($(button.dataset.preview).value));
+  $("closePreview").onclick = closePreview;
+  $("previewAudio").addEventListener("error", () => { $("previewStatus").textContent = "O áudio não pôde ser carregado. Confira o link, o formato e o servidor."; });
+  $("studio").addEventListener("click", event => {
+    const button = event.target.closest("button[data-action]");
+    if (!button || busy) return;
+    const id = button.dataset.id, action = button.dataset.action;
+    if (!/^[\w-]+$/.test(id || "")) return;
+    const p = programs[id], s = schedule[id];
+    if (action === "edit-program" && p) {
+      $("programId").value = id; $("programTitle").value = p.title || "";
+      $("programCategory").value = C.CATEGORIES.includes(p.category) ? p.category : "Especial";
+      $("programAudioUrl").value = p.audioUrl || ""; $("programDescription").value = p.description || "";
+      $("programPublished").value = String(p.published !== false);
+      $("programFormTitle").textContent = "Editar programa"; $("cancelProgramEdit").classList.remove("hidden");
+      $("programEditor").scrollIntoView({ block: "start" }); $("programTitle").focus({ preventScroll: true });
+    }
+    if (action === "preview-program" && p) preview(p.audioUrl);
+    if (action === "toggle-program" && p) {
+      if (p.published !== false && !confirm("Ocultar este programa? Ele deixará de tocar na agenda e de aparecer na biblioteca pública.")) return;
+      run(button, () => db.ref(C.ROOT + "/programs/" + id).update({ published: p.published === false, ...stamp() }), p.published === false ? "Programa publicado." : "Programa oculto.");
+    }
+    if (action === "delete-program" && p) {
+      if (C.entries(schedule).some(item => item.programId === id)) return message("Este programa está vinculado à agenda. Remova os horários vinculados antes de excluí-lo, ou use Ocultar.", true);
+      if (!confirm('Excluir definitivamente o programa "' + (p.title || "Sem título") + '"?')) return;
+      run(button, () => db.ref(C.ROOT + "/programs/" + id).remove(), "Programa excluído.");
+    }
+    if (action === "edit-schedule" && s) {
+      $("scheduleId").value = id; $("scheduleProgram").value = s.programId || "";
+      $("scheduleStart").value = C.toLocalInput(s.startAt); $("scheduleEnd").value = C.toLocalInput(s.endAt);
+      $("scheduleFormTitle").textContent = "Editar horário"; $("cancelScheduleEdit").classList.remove("hidden");
+      $("agenda").scrollIntoView({ block: "start" });
+    }
+    if (action === "delete-schedule" && s) {
+      if (!confirm("Remover este horário da programação? O programa continuará na biblioteca.")) return;
+      run(button, () => db.ref(C.ROOT + "/schedule/" + id).remove(), "Horário removido.");
+    }
+  });
 })();

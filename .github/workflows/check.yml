@@ -25,5 +25,10 @@ jobs:
           node --check site.js
           node --check admin/admin.js
           node --check api/himundim-meta.js
+          node --check radio-core.js
+          node --check ui.js
+      - name: Validar regras de programação e áudio
+        run: node --test tests/*.test.js
       - name: Validar JSON
         run: python3 -m json.tool vercel.json >/dev/null
+

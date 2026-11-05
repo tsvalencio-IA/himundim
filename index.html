@@ -6,9 +6,11 @@
   <meta name="theme-color" content="#ffffff">
   <title>Hi-Mundim | guia do tempo livre + Rádio</title>
   <meta name="description" content="Demonstração da Rádio Hi-Mundim integrada à experiência editorial do guia do tempo livre.">
+  <script src="/ui.js"></script>
   <link rel="stylesheet" href="/site.css">
 </head>
 <body>
+  <a class="skip-link" href="#radio">Pular para a rádio</a>
   <div class="demo-note">DEMONSTRAÇÃO · PROPOSTA RÁDIO HI-MUNDIM</div>
 
   <header class="site-header">
@@ -16,6 +18,7 @@
       <a href="https://www.instagram.com/himundim/" target="_blank" rel="noopener">Instagram</a>
       <a href="https://www.youtube.com/" target="_blank" rel="noopener">YouTube</a>
       <a class="radio-top-link" href="#radio">● Rádio Hi-Mundim</a>
+      <button class="theme-toggle" type="button">Tema escuro</button>
     </div>
 
     <a class="source-brand" href="https://hi-mundim.com.br/" target="_blank" rel="noopener" aria-label="Hi-Mundim">
@@ -40,14 +43,16 @@
     <section id="radio" class="radio-hero page-width">
       <div class="radio-copy">
         <div class="radio-kicker"><span id="liveBadge" class="live-pill">FORA DO AR</span><span id="connectionText">Conectando…</span></div>
-        <p class="overline">RÁDIO HI-MUNDIM</p>
+        <p class="overline" data-station-name>RÁDIO HI-MUNDIM</p>
         <h1 id="player-title">O guia do tempo livre, agora também para ouvir.</h1>
         <p id="nowDescription" class="radio-description">Quando houver uma transmissão ou programa publicado, ele aparecerá aqui.</p>
         <div class="radio-actions">
-          <button id="playBtn" class="primary-play" type="button" disabled><span class="play-symbol">▶</span><span class="play-copy">OUVIR AGORA</span></button>
+          <button id="playBtn" class="primary-play" type="button" aria-label="Ouvir rádio" aria-pressed="false" disabled><span class="play-symbol" aria-hidden="true">▶</span><span class="play-copy">OUVIR AGORA</span></button>
           <div class="volume-box"><label for="volume">VOLUME</label><input id="volume" type="range" min="0" max="1" step="0.01" value="0.85"></div>
         </div>
-        <span id="audioState" class="radio-state">Aguardando áudio</span>
+        <span id="audioState" class="radio-state" role="status" aria-live="polite">Aguardando áudio</span>
+        <div class="player-tools"><button id="returnRadioBtn" type="button" hidden>Voltar à rádio</button><button id="shareRadioBtn" type="button">Compartilhar rádio ↗</button><button id="retryAudioBtn" type="button" hidden>Tentar áudio novamente</button></div>
+        <div id="audioProgress" class="audio-progress" hidden><label class="sr-only" for="audioSeek">Posição no programa</label><input id="audioSeek" type="range" min="0" max="100" value="0" step="0.1"><span id="audioTime">0:00 / 0:00</span></div>
         <audio id="audio" preload="none"></audio>
       </div>
       <div class="radio-art" aria-hidden="true">
@@ -57,6 +62,12 @@
         <div class="radio-wave wave-c"></div>
         <strong>ON<br>AIR</strong>
       </div>
+    </section>
+
+    <section class="page-width program-library" id="programas" aria-labelledby="library-title">
+      <div class="section-title-row"><div><p class="eyebrow">PARA OUVIR NO SEU TEMPO</p><h2 id="library-title">Programas da rádio</h2></div><span id="libraryCount" class="library-count"></span></div>
+      <div class="library-filters"><label><span class="sr-only">Buscar programa</span><input id="programSearch" type="search" placeholder="Buscar programa…"></label><label><span class="sr-only">Filtrar categoria</span><select id="categoryFilter"><option value="">Todas as categorias</option><option>Caminhos</option><option>Sabores</option><option>Balaio</option><option>Especial</option></select></label></div>
+      <div id="programLibrary" class="program-cards"><p class="library-empty">Carregando programas…</p></div>
     </section>
 
     <section class="page-width latest">
@@ -127,7 +138,7 @@
 
     <section class="radio-schedule-wrap">
       <div class="page-width">
-        <div class="category-heading inverse"><div><p class="eyebrow">RÁDIO HI-MUNDIM</p><h2>Programação</h2><p>Conteúdo para continuar vivendo o tempo livre, mesmo quando a tela fecha.</p></div><span id="scheduleStatus"></span></div>
+        <div class="category-heading inverse"><div><p class="eyebrow" data-station-name>RÁDIO HI-MUNDIM</p><h2>Programação</h2><p>Confira os horários de Brasília e escolha quando acompanhar.</p></div><span id="scheduleStatus"></span></div>
         <div id="scheduleList" class="schedule-list"><div class="schedule-empty">Ainda não há programação publicada.</div></div>
       </div>
     </section>
@@ -146,19 +157,20 @@
     <div class="page-width footer-inner">
       <span class="footer-brand">hi-mundim <small>guia do tempo livre</small></span>
       <p>Protótipo de apresentação da Rádio Hi-Mundim. As matérias e marcas exibidas pertencem ao site oficial e os links direcionam para hi-mundim.com.br.</p>
-      <a href="https://hi-mundim.com.br/" target="_blank" rel="noopener">SITE OFICIAL ↗</a>
+      <div class="footer-links"><a href="https://hi-mundim.com.br/" target="_blank" rel="noopener">SITE OFICIAL ↗</a><a href="/admin">Estúdio · Administrador ↗</a></div>
     </div>
   </footer>
 
   <div class="mini-player" id="miniPlayer">
     <span id="miniBadge" class="mini-live">RÁDIO</span>
-    <div class="mini-info"><small>Rádio Hi-Mundim</small><strong id="miniTitle">Fora do ar</strong></div>
+    <div class="mini-info"><small data-station-name>Rádio Hi-Mundim</small><strong id="miniTitle">Fora do ar</strong></div>
     <button id="miniPlayBtn" type="button" disabled aria-label="Ouvir Rádio Hi-Mundim">▶</button>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.6.0/firebase-database-compat.js"></script>
   <script src="/firebase-config.js"></script>
+  <script src="/radio-core.js"></script>
   <script src="/app.js"></script>
   <script src="/site.js"></script>
 </body>
