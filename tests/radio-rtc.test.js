@@ -126,26 +126,3 @@ test('invalid sessions and non-admin broadcasters cannot write signalling record
   await assert.rejects(rtc.host({ db, auth: { currentUser: { uid: 'other-user' } }, sessionId: 'live_test1234', stream: {} }), /administradora/);
   assert.equal(db.writes.length, 0);
 });
-
-test('listener permission preflight uses a separate session and deletes its probe account', async () => {
-  const db = database(); let deletedUser = false, deletedApp = false, persistence = '';
-  const probeAuth = { currentUser: null, async setPersistence(value) { persistence = value; }, async signInAnonymously() { this.currentUser = { uid: 'probe-user', async delete() { deletedUser = true; } }; } };
-  const { rtc } = runtime({ auth: { Auth: { Persistence: { NONE: 'none' } } }, initializeApp: (_config, name) => {
-    assert.ok(name.startsWith('himundim-check-'));
-    return { auth: () => probeAuth, database: () => db, async delete() { deletedApp = true; } };
-  } });
-  await rtc.verifyListenerAccess('live_test1234');
-  assert.equal(persistence, 'none');
-  assert.equal(deletedUser, true);
-  assert.equal(deletedApp, true);
-  assert.equal(db.get(C.ROOT + '/webrtc/live_test1234/listeners/probe-user/connection_check'), null);
-});
-
-test('blocked listener preflight returns an actionable failure and still clears its anonymous session', async () => {
-  let deletedUser = false, deletedApp = false;
-  const probeAuth = { currentUser: null, async setPersistence() {}, async signInAnonymously() { this.currentUser = { uid: 'probe-user', async delete() { deletedUser = true; } }; } };
-  const { rtc } = runtime({ auth: { Auth: { Persistence: { NONE: 'none' } } }, initializeApp: () => ({ auth: () => probeAuth, database: () => ({ ref: () => ({ async set() { throw new Error('PERMISSION_DENIED'); }, async remove() {} }) }), async delete() { deletedApp = true; } }) });
-  await assert.rejects(rtc.verifyListenerAccess('live_test1234'), /Firebase.*conexão dos ouvintes/);
-  assert.equal(deletedUser, true);
-  assert.equal(deletedApp, true);
-});

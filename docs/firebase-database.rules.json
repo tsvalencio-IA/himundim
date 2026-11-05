@@ -1,0 +1,56 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "radio": {
+      ".read": true,
+      ".write": "auth != null && auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2'",
+      "programs": {
+        ".indexOn": ["startAt", "published", "createdAt"]
+      },
+      "schedule": { ".read": true },
+      "status": { ".read": true },
+      "live": { ".read": true },
+      "config": { ".read": true },
+      "featureFlags": { ".read": true },
+      "webrtc": {
+        "$sessionId": {
+          "listeners": {
+            "$uid": {
+              "$connectionId": {
+                ".write": "auth != null && (auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2' || (auth.uid === $uid && root.child('radio/live/active').val() === true && root.child('radio/live/streamType').val() === 'WEBRTC' && root.child('radio/live/webrtcSessionId').val() === $sessionId))",
+                ".validate": "!newData.exists() || newData.child('uid').val() === $uid"
+              }
+            }
+          }
+        }
+      },
+      "himundim": {
+        "webrtc": {
+          "$sessionId": {
+            "listeners": {
+              "$uid": {
+                "$connectionId": {
+                  ".write": "auth != null && (auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2' || (auth.uid === $uid && (!newData.exists() || (root.child('radio/himundim/live/active').val() === true && root.child('radio/himundim/live/streamType').val() === 'WEBRTC' && root.child('radio/himundim/live/webrtcSessionId').val() === $sessionId))))",
+                  ".validate": "!newData.exists() || newData.child('uid').val() === $uid"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "app": {
+      "config": {
+        ".read": true,
+        ".write": "auth != null && auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2'"
+      }
+    },
+    "admins": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2'",
+        ".write": false
+      }
+    }
+  }
+}

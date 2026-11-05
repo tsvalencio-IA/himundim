@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const $ = id => document.getElementById(id), C = window.HimundimRadio;
+  const $ = id => document.getElementById(id), C = window.HimundimRadio, Y = window.HimundimYouTube;
   const audio = $("audio"), play = $("playBtn"), miniPlay = $("miniPlayBtn");
   const state = $("audioState");
   if (!C || !window.firebase || !window.HIMUNDIM_FIREBASE_CONFIG || window.HIMUNDIM_DB_ROOT !== C.ROOT) {
@@ -10,18 +10,32 @@
     return;
   }
   const app = firebase.initializeApp(window.HIMUNDIM_FIREBASE_CONFIG), db = app.database(), auth = app.auth();
-  let live = {}, programs = {}, schedule = {}, config = {}, current = null, currentKey = "";
+  let live = {}, programs = {}, schedule = {}, config = {}, current = null, currentKey = "", youtubeState = {}, rtcFailure = "";
   let manualId = "", wantsPlayback = false, boundaryTimer = null, connected = false;
   let rtc = null, rtcAttempt = 0, rtcTimer = null, connectingLive = false, rtcConnected = false, liveMeta = null;
   const loaded = new Set(), failures = new Set();
+  const youtube = Y.createSurface({ container: $("radioYoutube"), mountId: "radioYoutubePlayer", title: $("radioYoutubeTitle"), notice: $("radioYoutubeStatus"),
+    onState: status => {
+      if (!current || current.streamType !== "WEBRTC") return;
+      $("activateYoutubeBtn").hidden = status !== "blocked" && status !== "error";
+      if (status === "playing" && wantsPlayback) state.textContent = rtcFailure ? "YouTube reproduzindo. A voz do estúdio não conectou." : "Reproduzindo";
+      controls();
+    }
+  });
   try {
     const saved = localStorage.getItem("himundim-volume");
     if (saved !== null && Number.isFinite(Number(saved))) $("volume").value = Math.max(0, Math.min(1, Number(saved)));
   } catch (_) {}
   audio.volume = Number($("volume").value);
+  youtube.setVolume(audio.volume);
   function source() { return C.selectSource({ live, programs, schedule, config, manualId }); }
+  function youtubeAvailable() { return current?.streamType === "WEBRTC" && !!Y.normalize(youtubeState, current.webrtcSessionId); }
+  function syncYoutube(shouldPlay = wantsPlayback) {
+    if (!youtubeAvailable()) { youtube.stop(); return Promise.resolve(); }
+    return youtube.update(youtubeState, current.webrtcSessionId, shouldPlay).catch(error => { $("radioYoutubeStatus").textContent = error.message; $("activateYoutubeBtn").hidden = false; });
+  }
   function controls() {
-    const playing = !audio.paused && !audio.ended && (current?.streamType !== "WEBRTC" || rtcConnected);
+    const playing = youtube.playing || !audio.paused && !audio.ended && (current?.streamType !== "WEBRTC" || rtcConnected);
     play.querySelector(".play-symbol").textContent = playing ? "❚❚" : "▶";
     play.querySelector(".play-copy").textContent = playing ? "PAUSAR" : connectingLive ? "CONECTANDO…" : "OUVIR AGORA";
     play.setAttribute("aria-busy", String(connectingLive));
@@ -41,17 +55,22 @@
   async function startPlayback() {
     if (!current) return;
     wantsPlayback = true;
+    rtcFailure = "";
     const expectedKey = currentKey;
     state.textContent = "Carregando áudio…";
     $("retryAudioBtn").hidden = true;
+    syncYoutube(true);
     try {
       if (current.streamType === "WEBRTC" && !audio.srcObject) {
         stopRtc(); connectingLive = true; controls();
         const attempt = rtcAttempt;
         const fail = text => {
           if (attempt !== rtcAttempt || expectedKey !== currentKey) return;
-          wantsPlayback = false; stopRtc();
-          state.textContent = text; $("retryAudioBtn").hidden = false; controls();
+          rtcFailure = text;
+          if (!youtubeAvailable()) wantsPlayback = false;
+          stopRtc();
+          state.textContent = youtube.playing ? "YouTube reproduzindo. A voz do estúdio não conectou." : text;
+          $("retryAudioBtn").hidden = false; controls();
         };
         rtc = window.HimundimRTC.listen({ db, auth, sessionId: current.webrtcSessionId, audio,
           onState: (status, error) => {
@@ -71,7 +90,8 @@
     }
     catch (error) {
       if (expectedKey !== currentKey || error.name === "AbortError") return;
-      wantsPlayback = false;
+      rtcFailure = current?.streamType === "WEBRTC" ? error.message : "";
+      if (!youtubeAvailable()) wantsPlayback = false;
       if (current?.streamType === "WEBRTC") stopRtc();
       state.textContent = error.name === "NotAllowedError" ? "Toque em Ouvir agora para iniciar." : current?.streamType === "WEBRTC" ? error.message : "O áudio não pôde ser iniciado. Confira sua conexão ou tente novamente.";
       $("retryAudioBtn").hidden = false;
@@ -80,11 +100,12 @@
   }
   function pausePlayback() {
     wantsPlayback = false;
+    youtube.pause();
     stopRtc();
     audio.pause();
     controls();
   }
-  function togglePlayback() { if (connectingLive || !audio.paused && !audio.ended) pausePlayback(); else startPlayback(); }
+  function togglePlayback() { if (youtube.playing || connectingLive || !audio.paused && !audio.ended) pausePlayback(); else startPlayback(); }
   function updateMetadata() {
     if (!("mediaSession" in navigator) || !("MediaMetadata" in window)) return;
     try {
@@ -109,6 +130,7 @@
     const nextKey = current ? [current.kind, current.id, current.audioUrl].join("|") : "";
     if (nextKey !== currentKey) {
       currentKey = nextKey;
+      youtube.stop(); rtcFailure = "";
       stopRtc(); audio.srcObject = null;
       $("retryAudioBtn").hidden = true;
       if (!current) {
@@ -126,7 +148,7 @@
       controls();
     } else updateMetadata();
     if (!current && failures.size === 0) state.textContent = loaded.has("live") && loaded.has("schedule") && loaded.has("config") ? "Aguardando transmissão" : "Consultando a rádio…";
-    planBoundary();
+    syncYoutube(); planBoundary();
   }
   function planBoundary() {
     clearTimeout(boundaryTimer);
@@ -192,6 +214,7 @@
   subscribe("programs", value => { programs = value; });
   subscribe("schedule", value => { schedule = value; });
   subscribe("config", value => { config = value; });
+  db.ref(C.ROOT + "/liveMedia/youtube").on("value", snapshot => { youtubeState = C.record(snapshot.val()); syncYoutube(); }, () => { youtube.stop(); $("radioYoutubeStatus").textContent = "Não foi possível consultar o YouTube da programação."; });
   db.ref(".info/connected").on("value", snapshot => { connected = snapshot.val() === true; connectionStatus(); });
   play.addEventListener("click", togglePlayback); miniPlay.addEventListener("click", togglePlayback);
   $("returnRadioBtn").onclick = () => { manualId = ""; applyPlayer(); renderLibrary(); };
@@ -207,10 +230,11 @@
   $("retryAudioBtn").onclick = () => { if (current) { stopRtc(); audio.load(); startPlayback(); } };
   $("volume").addEventListener("input", () => {
     audio.volume = Number($("volume").value);
+    youtube.setVolume(audio.volume);
     try { localStorage.setItem("himundim-volume", $("volume").value); } catch (_) {}
   });
   audio.addEventListener("play", () => { state.textContent = current?.streamType === "WEBRTC" && !rtcConnected ? "Conectando à transmissão…" : "Reproduzindo"; controls(); });
-  audio.addEventListener("pause", () => { if (current && !audio.ended) state.textContent = "Pausado"; controls(); });
+  audio.addEventListener("pause", () => { if (current && !audio.ended) state.textContent = youtube.playing ? "YouTube reproduzindo" : "Pausado"; controls(); });
   audio.addEventListener("playing", () => {
     if (current?.streamType === "WEBRTC" && !rtcConnected) { state.textContent = "Conectando à transmissão…"; controls(); return; }
     connectingLive = false; clearTimeout(rtcTimer); state.textContent = "Reproduzindo"; $("retryAudioBtn").hidden = true; controls();
@@ -252,6 +276,7 @@
     try { navigator.mediaSession.setActionHandler("play", startPlayback); navigator.mediaSession.setActionHandler("pause", pausePlayback); navigator.mediaSession.setActionHandler("stop", pausePlayback); } catch (_) {}
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { applyPlayer(); renderSchedule(); } });
-  window.addEventListener("pagehide", stopRtc);
+  $("activateYoutubeBtn").onclick = () => { if (!wantsPlayback) startPlayback(); else youtube.start().catch(error => { $("radioYoutubeStatus").textContent = error.message; }); };
+  window.addEventListener("pagehide", () => { stopRtc(); youtube.stop(); });
   controls();
 })();

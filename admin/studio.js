@@ -4,7 +4,7 @@
   window.HimundimStudio = { create({ db, auth, canWrite }) {
     let microphone = null, context = null, output = null, master = null, micGain = null, musicGain = null, jingleGain = null, analyser = null, micAnalyser = null;
     let host = null, sessionId = "", lastLive = {}, working = false, muted = false, meter = 0, clock = 0, startedAt = 0, localUrl = "", library = {};
-    let micSource = null, musicSource = null, wakeLock = null;
+    let micSource = null, musicSource = null, wakeLock = null, remoteNotice = false;
     const music = new Audio(), effects = new Set();
     music.crossOrigin = "anonymous"; music.preload = "none";
     const status = (text, error = false) => { $("studioStatus").textContent = text; $("studioStatus").dataset.tone = error ? "error" : "info"; };
@@ -90,8 +90,6 @@
       });
       host = newHost;
       try {
-        status("Conferindo a conexão dos ouvintes…");
-        await window.HimundimRTC.verifyListenerAccess(sessionId);
         const live = { active: true, streamType: "WEBRTC", webrtcSessionId: sessionId, audioUrl: "", title: $("studioTitle").value.trim() || "Rádio Hi-Mundim ao vivo", description: "Transmissão ao vivo da Rádio Hi-Mundim.", startedAt: firebase.database.ServerValue.TIMESTAMP, ...stamp() };
         const result = await db.ref(C.ROOT + "/live").transaction(current => {
           if (current?.active && current.streamType === "WEBRTC" && current.webrtcSessionId !== expectedSession) return;
@@ -121,6 +119,7 @@
       releaseAudio();
       try {
         if (id && auth.currentUser?.uid === C.ADMIN_UID) {
+          await db.ref(C.ROOT + "/liveMedia/youtube").transaction(current => current?.sessionId === id ? { ...current, active: false, playing: false, command: "STOP", updatedAt: firebase.database.ServerValue.TIMESTAMP } : undefined, undefined, false);
           await db.ref(C.ROOT + "/live").transaction(current => {
             if (current?.webrtcSessionId !== id) return;
             return { ...current, active: false, endedAt: firebase.database.ServerValue.TIMESTAMP, ...stamp() };
@@ -205,11 +204,12 @@
     window.addEventListener("pagehide", () => { if (host) stop().catch(() => {}); else releaseAudio(); });
     document.addEventListener("visibilitychange", () => { if (host && !document.hidden) wake(); });
     buttons();
-    return { stop, releaseAudio, get active() { return !!host; },
+    return { stop, releaseAudio, get active() { return !!host; }, get sessionId() { return host ? sessionId : ""; },
       setLive(value) {
         lastLive = value;
         if (host && (!value.active || value.webrtcSessionId !== sessionId)) { const old = host; host = null; old.stop().catch(() => {}); sessionId = ""; releaseAudio(); }
-        if (remoteActive()) status("Há um estúdio ativo em outro aparelho. Os ouvintes usam a página principal.");
+        if (remoteActive()) { remoteNotice = true; status("Há um estúdio ativo em outro aparelho. Os ouvintes usam a página principal."); }
+        else if (remoteNotice && !host) { remoteNotice = false; status(microphone ? "Microfone pronto. Toque em Entrar ao vivo para transmitir." : "O estúdio está livre. Ative o microfone para preparar a rádio."); }
         buttons();
       },
       setLibrary(value) { library = value; renderLibrary(); }

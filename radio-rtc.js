@@ -16,24 +16,6 @@
     if (error.code === "auth/operation-not-allowed" || error.code === "auth/admin-restricted-operation") return new Error("A conexão dos ouvintes precisa ser habilitada pelo administrador da rádio.");
     return new Error("Não foi possível conectar à transmissão. Tente novamente.");
   }
-  async function verifyListenerAccess(sessionId) {
-    // Use a separate in-memory anonymous session; never replace the studio login.
-    const app = firebase.initializeApp(window.HIMUNDIM_FIREBASE_CONFIG, newId("himundim-check-"));
-    const auth = app.auth(); let node = null;
-    try {
-      await auth.setPersistence(firebase.auth.Auth.Persistence.NONE);
-      await auth.signInAnonymously();
-      node = app.database().ref(C.ROOT + "/webrtc/" + sessionId + "/listeners/" + auth.currentUser.uid + "/connection_check");
-      await node.set({ uid: auth.currentUser.uid, probe: true, createdAt: firebase.database.ServerValue.TIMESTAMP });
-      await node.remove();
-    } catch (_) {
-      throw new Error("O Firebase ainda não liberou a conexão dos ouvintes da Hi-Mundim. É preciso conferir as permissões desta rádio antes de entrar ao vivo.");
-    } finally {
-      if (node) await node.remove().catch(() => {});
-      if (auth.currentUser) await auth.currentUser.delete().catch(() => {});
-      await app.delete().catch(() => {});
-    }
-  }
   function listen({ db, auth, sessionId, audio, onState = () => {} }) {
     if (!validId(sessionId)) throw new Error("Transmissão indisponível.");
     let stopped = false, pc = null, node = null, disconnect = null, remote = false, settingRemote = false, published = false;
@@ -163,5 +145,5 @@
       return { stop, sessionId };
     } catch (error) { await stop(); throw error; }
   }
-  window.HimundimRTC = { listen, host, newId, verifyListenerAccess };
+  window.HimundimRTC = { listen, host, newId };
 })();

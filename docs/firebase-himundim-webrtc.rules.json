@@ -8,7 +8,7 @@
       ".read": "auth != null && auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2'",
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2')",
-        ".write": "auth != null && (auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2' || (auth.uid === $uid && (!newData.exists() || root.child('radio').child('himundim').child('webrtc').child($session).child('meta').child('active').val() === true)))",
+        ".write": "auth != null && (auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2' || (auth.uid === $uid && (!newData.exists() || (root.child('radio/himundim/live/active').val() === true && root.child('radio/himundim/live/streamType').val() === 'WEBRTC' && root.child('radio/himundim/live/webrtcSessionId').val() === $session))))",
         "$connection": {
           ".validate": "!newData.exists() || (newData.hasChild('uid') && newData.child('uid').val() === $uid)"
         }

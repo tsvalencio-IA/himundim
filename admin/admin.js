@@ -15,6 +15,9 @@
   const studio = window.HimundimStudio.create({ db, auth,
     canWrite: () => auth.currentUser?.uid === C.ADMIN_UID && connected && !busy
   });
+  const youtube = window.HimundimYoutubeStudio.create({ db, auth, studio,
+    canWrite: () => auth.currentUser?.uid === C.ADMIN_UID && connected && !busy
+  });
   const stamp = () => ({ updatedAt: firebase.database.ServerValue.TIMESTAMP, updatedBy: auth.currentUser.uid });
   function message(text, error = false, login = false) {
     const target = $(login ? "loginStatus" : "adminStatus");
@@ -134,6 +137,7 @@
     }
     if (!allowed) {
       studio.stop().catch(() => {});
+      youtube.closePreview();
       closePreview();
       programs = {}; schedule = {}; live = {}; config = {}; connected = false;
       dirtyForms.clear();
@@ -186,13 +190,15 @@
       schedule = C.record(snapshot.val());
       renderSchedule(); updateMetrics();
     });
-    subscribe(C.ROOT + "/library", snapshot => studio.setLibrary(C.record(snapshot.val())));
+    subscribe(C.ROOT + "/library", snapshot => { const value = C.record(snapshot.val()); studio.setLibrary(value); youtube.setLibrary(value); });
+    subscribe(C.ROOT + "/liveMedia/youtube", snapshot => youtube.setMedia(C.record(snapshot.val())));
     message("Estúdio pronto. Ative o microfone para transmitir ou abra Programas gravados para enviar um áudio.");
   }, () => message("Não foi possível verificar a sessão. Recarregue a página.", true, true));
   function updateLiveState() {
     $("liveState").textContent = C.isRtcLive(live) ? (live.studioAvailable ? "Estúdio ao vivo: " : "Estúdio desconectado: ") + (live.title || "Hi-Mundim") : live.active ? "Fonte externa: " + (live.title || "Ao vivo") : "Nenhuma transmissão imediata ativa.";
     $("liveOffBtn").disabled = !live.active;
     studio.setLive(live);
+    youtube.setLive(live);
     updateMetrics();
   }
   function updateMetrics() {

@@ -62,13 +62,21 @@ A transmissão e a mesa reutilizam a lógica do aplicativo Bíblia Rádio, com t
 
 Prioridade: seleção explícita do acervo → estúdio ao vivo ou fonte imediata → programa no horário → fonte contínua habilitada → fora do ar. A pausa do ouvinte fecha a conexão ao estúdio; retomar cria uma conexão nova. Encerrar a transmissão desliga o microfone e fecha os pares. Se o estúdio perder a conexão, a presença da sessão é desativada pelo Firebase e a página volta para a programação disponível.
 
+## YouTube
+
+O painel tem uma seção visível **YouTube na rádio**, com link de vídeo, pré-escuta neste aparelho, envio aos ouvintes, pausa, retomada, volume, silêncio e biblioteca de referências. A pré-escuta é interrompida ao enviar o vídeo para a rádio. O ouvinte continua na página Hi-Mundim; o player incorporado aparece junto aos controles da rádio.
+
+O estado é sincronizado exclusivamente em `radio/himundim/liveMedia/youtube` e fica vinculado à sessão de estúdio. Quem chega depois acompanha a posição atual do programa; pausar localmente é respeitado, inclusive durante atualizações de volume. Encerrar o estúdio retira o YouTube da transmissão. A voz continua em WebRTC e o vídeo usa o player oficial incorporado, como no fluxo da Bíblia; não há extração de áudio do YouTube.
+
+Colar um vídeo e reproduzir não exige chave de pesquisa. Para pesquisar dentro do painel, a configuração opcional usa YouTube Data API, como o aplicativo original. A chave fica somente no armazenamento local deste aparelho. Sem chave, o painel oferece a busca no próprio YouTube para escolher e colar o link. Vídeos podem impedir incorporação e o navegador pode exigir um toque adicional; o player exibe essas situações.
+
 ## Permissões do ao vivo
 
-O estúdio verifica a permissão de uma conexão anônima temporária dentro da sessão real antes de anunciar **NO AR**. Essa verificação usa uma instância Firebase separada, persistência em memória e exclui a conta e o registro temporários ao terminar. Não altera a conta administradora.
+As regras completas fornecidas pelo usuário comprovam a diferença: as conexões da Bíblia são autorizadas em `radio/webrtc`, usando o estado de `radio/live`; o namespace novo `radio/himundim/webrtc` não tinha a regra de escrita do ouvinte. Compartilhar o projeto Firebase não replica uma regra para outro caminho.
 
-A autenticação anônima está habilitada no Firebase. Uma sondagem sem sessão ativa foi recusada pelo banco e seu usuário temporário foi excluído; isso **não confirma** se a regra permite conexões dentro de uma sessão ativa. A regra atual completa não foi obtida. Não houve alteração das regras.
+`docs/firebase-database.rules.json` preserva integralmente o objeto de regras fornecido e acrescenta somente `rules.radio.himundim`. A conta administradora mantém o acesso que já possuía. O ouvinte pode escrever somente em seu UID, dentro da sessão Hi-Mundim publicada como ativa, e remover sua própria conexão. O arquivo de regras precisa ser publicado no Realtime Database; publicar este repositório na Vercel não aplica regras do Firebase.
 
-Se a verificação do estúdio apontar bloqueio, o arquivo `docs/firebase-himundim-webrtc.rules.json` contém somente o bloco candidato para o caminho **rules.radio.himundim.webrtc**. Ele precisa ser combinado com as regras atuais nesse ponto exato; não deve substituir o arquivo inteiro de regras. O bloco dá escrita administrativa na sessão e permite ao ouvinte escrever somente no próprio UID durante uma sessão ativa, além de remover seus registros. As regras e os dados de `radio/live`, `radio/programs` e `radio/webrtc` da Bíblia permanecem fora desse bloco.
+A verificação artificial que criava outra conta anônima antes de publicar `live` foi removida: a regra de ouvintes depende exatamente de `live` já estar ativo. A ordem agora é preparar o estúdio → publicar a sessão ao vivo → conectar o ouvinte pelo fluxo real. Não são criadas contas de verificação no administrativo.
 
 O transporte preserva os servidores STUN da implementação original. Redes que exigem relay TURN podem impedir a conexão direta. Não foi configurado um serviço TURN sem credenciais do usuário. Navegadores e sistemas podem interromper o estúdio quando ele fica em segundo plano; o bloqueio de tela é solicitado quando suportado.
 
@@ -78,6 +86,6 @@ O transporte preserva os servidores STUN da implementação original. Redes que 
 node --test tests/*.test.js
 ```
 
-Os 19 testes cobrem seleção de fontes, URLs de áudio, agenda, fuso de Brasília, sinalização host/ouvinte, candidatos ICE, cancelamento durante autenticação e limpeza de conexões, todos sem dados de produção.
+Os testes cobrem seleção de fontes, agenda, fuso de Brasília, sinalização host/ouvinte, candidatos ICE, cancelamento, limpeza de conexões, interpretação dos comandos do YouTube, pausa local, entrada tardia e preservação das regras originais. Os testes de regras executam as expressões preparadas e não substituem a publicação e a validação no Firebase real.
 
-A interface foi verificada em larguras de 320, 390, 768 e 1280 pixels, sem rolagem lateral. O ambiente isolado confirmou a passagem de título e estado do estúdio para a página clonada. O navegador de teste não produziu candidatos de rede WebRTC e não transportou pacotes de áudio; por isso o teste não comprova recepção sonora entre aparelhos reais. O player só indica reprodução do ao vivo depois de a conexão WebRTC ser estabelecida. A transmissão real e os uploads dependem das permissões e dos serviços existentes.
+A interface é verificada em larguras de 320, 390, 768 e 1280 pixels, sem rolagem lateral. No ambiente isolado, foi confirmada a publicação do estúdio, a abertura da pré-escuta oficial do YouTube, o envio do vídeo ao player da página clonada, a pausa e o salvamento da referência na biblioteca. O navegador de teste não transporta pacotes de áudio WebRTC; a recepção sonora entre aparelhos reais precisa ser validada após a publicação das regras.
