@@ -9,9 +9,10 @@
     $("programLibrary").textContent = "Não foi possível consultar os programas.";
     return;
   }
-  const db = firebase.initializeApp(window.HIMUNDIM_FIREBASE_CONFIG).database();
+  const app = firebase.initializeApp(window.HIMUNDIM_FIREBASE_CONFIG), db = app.database(), auth = app.auth();
   let live = {}, programs = {}, schedule = {}, config = {}, current = null, currentKey = "";
   let manualId = "", wantsPlayback = false, boundaryTimer = null, connected = false;
+  let rtc = null, rtcAttempt = 0, rtcTimer = null, connectingLive = false, rtcConnected = false, liveMeta = null;
   const loaded = new Set(), failures = new Set();
   try {
     const saved = localStorage.getItem("himundim-volume");
@@ -20,9 +21,10 @@
   audio.volume = Number($("volume").value);
   function source() { return C.selectSource({ live, programs, schedule, config, manualId }); }
   function controls() {
-    const playing = !audio.paused && !audio.ended;
+    const playing = !audio.paused && !audio.ended && (current?.streamType !== "WEBRTC" || rtcConnected);
     play.querySelector(".play-symbol").textContent = playing ? "❚❚" : "▶";
-    play.querySelector(".play-copy").textContent = playing ? "PAUSAR" : "OUVIR AGORA";
+    play.querySelector(".play-copy").textContent = playing ? "PAUSAR" : connectingLive ? "CONECTANDO…" : "OUVIR AGORA";
+    play.setAttribute("aria-busy", String(connectingLive));
     play.setAttribute("aria-label", playing ? "Pausar áudio" : "Ouvir áudio");
     play.setAttribute("aria-pressed", String(playing));
     miniPlay.textContent = playing ? "❚❚" : "▶";
@@ -31,27 +33,58 @@
       try { navigator.mediaSession.playbackState = playing ? "playing" : current ? "paused" : "none"; } catch (_) {}
     }
   }
+  function stopRtc() {
+    rtcAttempt++; clearTimeout(rtcTimer); rtcTimer = null;
+    connectingLive = false; rtcConnected = false;
+    if (rtc) { const old = rtc; rtc = null; old.stop(); }
+  }
   async function startPlayback() {
     if (!current) return;
     wantsPlayback = true;
     const expectedKey = currentKey;
     state.textContent = "Carregando áudio…";
     $("retryAudioBtn").hidden = true;
-    try { await audio.play(); }
+    try {
+      if (current.streamType === "WEBRTC" && !audio.srcObject) {
+        stopRtc(); connectingLive = true; controls();
+        const attempt = rtcAttempt;
+        const fail = text => {
+          if (attempt !== rtcAttempt || expectedKey !== currentKey) return;
+          wantsPlayback = false; stopRtc();
+          state.textContent = text; $("retryAudioBtn").hidden = false; controls();
+        };
+        rtc = window.HimundimRTC.listen({ db, auth, sessionId: current.webrtcSessionId, audio,
+          onState: (status, error) => {
+            if (attempt !== rtcAttempt || expectedKey !== currentKey || !wantsPlayback) return;
+            if (status === "failed" || status === "error") return fail(error?.message || "A transmissão não conectou. Toque em Tentar áudio novamente.");
+            if (status === "connected") { rtcConnected = true; connectingLive = false; clearTimeout(rtcTimer); state.textContent = audio.paused ? "Toque em Ouvir agora para iniciar o áudio." : "Reproduzindo"; controls(); }
+            if (status === "tap") { connectingLive = false; state.textContent = "Toque em Ouvir agora para iniciar o áudio."; controls(); }
+            if (status === "connecting") state.textContent = "Conectando à rádio…";
+            if (status === "reconnecting") { rtcConnected = false; connectingLive = true; state.textContent = "Reconectando à transmissão…"; clearTimeout(rtcTimer); rtcTimer = setTimeout(() => fail("A conexão com o estúdio foi interrompida. Tente novamente."), 15000); controls(); }
+          }
+        });
+        rtcTimer = setTimeout(() => fail("Não foi possível conectar ao estúdio. Tente novamente."), 30000);
+        await rtc.ready;
+        return;
+      }
+      await audio.play();
+    }
     catch (error) {
       if (expectedKey !== currentKey || error.name === "AbortError") return;
       wantsPlayback = false;
-      state.textContent = error.name === "NotAllowedError" ? "Toque em Ouvir agora para iniciar." : "O áudio não pôde ser iniciado. Confira sua conexão ou tente novamente.";
+      if (current?.streamType === "WEBRTC") stopRtc();
+      state.textContent = error.name === "NotAllowedError" ? "Toque em Ouvir agora para iniciar." : current?.streamType === "WEBRTC" ? error.message : "O áudio não pôde ser iniciado. Confira sua conexão ou tente novamente.";
       $("retryAudioBtn").hidden = false;
       controls();
     }
   }
   function pausePlayback() {
     wantsPlayback = false;
+    stopRtc();
     audio.pause();
     controls();
   }
-  function togglePlayback() { if (audio.paused || audio.ended) startPlayback(); else pausePlayback(); }
+  function togglePlayback() { if (connectingLive || !audio.paused && !audio.ended) pausePlayback(); else startPlayback(); }
   function updateMetadata() {
     if (!("mediaSession" in navigator) || !("MediaMetadata" in window)) return;
     try {
@@ -76,13 +109,16 @@
     const nextKey = current ? [current.kind, current.id, current.audioUrl].join("|") : "";
     if (nextKey !== currentKey) {
       currentKey = nextKey;
+      stopRtc(); audio.srcObject = null;
       $("retryAudioBtn").hidden = true;
       if (!current) {
         wantsPlayback = false;
         audio.pause(); audio.removeAttribute("src"); audio.load();
         state.textContent = loaded.has("live") && loaded.has("schedule") && loaded.has("config") ? "Aguardando transmissão" : "Consultando a rádio…";
       } else {
-        audio.src = current.audioUrl; audio.load();
+        audio.pause(); audio.removeAttribute("src");
+        if (current.streamType !== "WEBRTC") audio.src = current.audioUrl;
+        audio.load();
         state.textContent = "Pronto para ouvir";
         if (wantsPlayback) startPlayback();
       }
@@ -134,7 +170,25 @@
       if (!current) state.textContent = "Não foi possível consultar a rádio. Verifique a conexão e recarregue.";
     });
   }
-  subscribe("live", value => { live = value; });
+  subscribe("live", value => {
+    live = value;
+    if (liveMeta) { liveMeta.ref.off("value", liveMeta.callback); liveMeta = null; }
+    if (C.isRtcLive(live)) {
+      live.studioAvailable = false;
+      const sessionId = live.webrtcSessionId, ref = db.ref(C.ROOT + "/webrtc/" + sessionId + "/meta");
+      const callback = snapshot => {
+        if (live.webrtcSessionId !== sessionId) return;
+        live.studioAvailable = snapshot.val()?.active === true;
+        applyPlayer();
+      };
+      liveMeta = { ref, callback };
+      ref.on("value", callback, () => {
+        if (live.webrtcSessionId !== sessionId) return;
+        live.studioAvailable = false; applyPlayer();
+        state.textContent = "A transmissão está indisponível. Tente novamente mais tarde.";
+      });
+    }
+  });
   subscribe("programs", value => { programs = value; });
   subscribe("schedule", value => { schedule = value; });
   subscribe("config", value => { config = value; });
@@ -150,14 +204,17 @@
   });
   $("programSearch").addEventListener("input", renderLibrary);
   $("categoryFilter").addEventListener("change", renderLibrary);
-  $("retryAudioBtn").onclick = () => { if (current) { audio.load(); startPlayback(); } };
+  $("retryAudioBtn").onclick = () => { if (current) { stopRtc(); audio.load(); startPlayback(); } };
   $("volume").addEventListener("input", () => {
     audio.volume = Number($("volume").value);
     try { localStorage.setItem("himundim-volume", $("volume").value); } catch (_) {}
   });
-  audio.addEventListener("play", () => { state.textContent = "Reproduzindo"; controls(); });
+  audio.addEventListener("play", () => { state.textContent = current?.streamType === "WEBRTC" && !rtcConnected ? "Conectando à transmissão…" : "Reproduzindo"; controls(); });
   audio.addEventListener("pause", () => { if (current && !audio.ended) state.textContent = "Pausado"; controls(); });
-  audio.addEventListener("playing", () => { state.textContent = "Reproduzindo"; $("retryAudioBtn").hidden = true; controls(); });
+  audio.addEventListener("playing", () => {
+    if (current?.streamType === "WEBRTC" && !rtcConnected) { state.textContent = "Conectando à transmissão…"; controls(); return; }
+    connectingLive = false; clearTimeout(rtcTimer); state.textContent = "Reproduzindo"; $("retryAudioBtn").hidden = true; controls();
+  });
   audio.addEventListener("waiting", () => { if (wantsPlayback) state.textContent = "Carregando áudio…"; });
   audio.addEventListener("ended", () => { wantsPlayback = false; state.textContent = "Programa encerrado"; controls(); });
   audio.addEventListener("error", () => {
@@ -195,5 +252,6 @@
     try { navigator.mediaSession.setActionHandler("play", startPlayback); navigator.mediaSession.setActionHandler("pause", pausePlayback); navigator.mediaSession.setActionHandler("stop", pausePlayback); } catch (_) {}
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { applyPlayer(); renderSchedule(); } });
+  window.addEventListener("pagehide", stopRtc);
   controls();
 })();

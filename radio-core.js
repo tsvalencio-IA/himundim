@@ -48,11 +48,16 @@
       return p && p.published !== false && audioUrl(p.audioUrl);
     });
   }
+  function isRtcLive(live) {
+    return live.active === true && live.streamType === "WEBRTC" && typeof live.webrtcSessionId === "string" && /^[\w-]{8,100}$/.test(live.webrtcSessionId);
+  }
   function selectSource({ live = {}, programs = {}, schedule = {}, config = {}, manualId = "", now = Date.now() }) {
     const manual = record(programs)[manualId];
     if (manualId && manual && manual.published !== false && audioUrl(manual.audioUrl))
       return { ...manual, audioUrl: audioUrl(manual.audioUrl), id: manualId, kind: "library" };
-    if (live.active === true && audioUrl(live.audioUrl))
+    if (isRtcLive(live) && live.studioAvailable !== false)
+      return { ...live, id: live.webrtcSessionId, kind: "live", title: live.title || "Hi-Mundim ao vivo", audioUrl: "" };
+    if (live.active === true && live.streamType !== "WEBRTC" && audioUrl(live.audioUrl))
       return { ...live, id: "live", kind: "live", title: live.title || "Hi-Mundim ao vivo", audioUrl: audioUrl(live.audioUrl) };
     const item = playableSchedule(schedule, programs).find(s =>
       Number(s.startAt) <= now && (s.endAt == null || Number(s.endAt) > now)
@@ -96,5 +101,5 @@
   function escape(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
-  return { ROOT, ADMIN_UID, TIME_ZONE, CATEGORIES, record, entries, audioUrl, requireAudio, publishedPrograms, scheduleRows, playableSchedule, selectSource, hasOverlap, toLocalInput, fromLocalInput, formatDate, escape };
+  return { ROOT, ADMIN_UID, TIME_ZONE, CATEGORIES, record, entries, audioUrl, requireAudio, publishedPrograms, scheduleRows, playableSchedule, isRtcLive, selectSource, hasOverlap, toLocalInput, fromLocalInput, formatDate, escape };
 });

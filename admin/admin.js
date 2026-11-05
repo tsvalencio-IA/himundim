@@ -10,7 +10,11 @@
   const auth = app.auth(), db = app.database();
   auth.languageCode = "pt-BR";
   let programs = {}, schedule = {}, live = {}, config = {}, connected = false, busy = false, denied = false;
+  let liveMeta = null, previewUrl = "";
   const subscriptions = [], dirtyForms = new Set();
+  const studio = window.HimundimStudio.create({ db, auth,
+    canWrite: () => auth.currentUser?.uid === C.ADMIN_UID && connected && !busy
+  });
   const stamp = () => ({ updatedAt: firebase.database.ServerValue.TIMESTAMP, updatedBy: auth.currentUser.uid });
   function message(text, error = false, login = false) {
     const target = $(login ? "loginStatus" : "adminStatus");
@@ -93,7 +97,10 @@
       message(error.code === "auth/user-not-found" ? "Se esse e-mail estiver cadastrado, você receberá as instruções de recuperação." : authError(error), error.code !== "auth/user-not-found", true);
     } finally { $("resetPasswordBtn").disabled = false; $("loginBtn").disabled = false; }
   };
-  function unsubscribe() { subscriptions.splice(0).forEach(([ref, callback]) => ref.off("value", callback)); }
+  function unsubscribe() {
+    subscriptions.splice(0).forEach(([ref, callback]) => ref.off("value", callback));
+    if (liveMeta) { liveMeta.ref.off("value", liveMeta.callback); liveMeta = null; }
+  }
   function subscribe(path, callback) {
     const ref = db.ref(path);
     ref.on("value", callback, error => message(dataError(error), true));
@@ -104,11 +111,12 @@
     $("previewAudio").removeAttribute("src");
     $("previewAudio").load();
     $("previewPanel").classList.add("hidden");
+    if (previewUrl) { URL.revokeObjectURL(previewUrl); previewUrl = ""; }
   }
   $("logoutBtn").onclick = async () => {
     if (busy) return message("Aguarde terminar o salvamento antes de sair.");
     $("logoutBtn").disabled = true;
-    try { await auth.signOut(); }
+    try { await studio.stop(); await auth.signOut(); }
     catch (_) { message("Não foi possível sair. Tente novamente.", true); }
     finally { $("logoutBtn").disabled = false; }
   };
@@ -125,6 +133,7 @@
       return;
     }
     if (!allowed) {
+      studio.stop().catch(() => {});
       closePreview();
       programs = {}; schedule = {}; live = {}; config = {}; connected = false;
       dirtyForms.clear();
@@ -155,14 +164,19 @@
     });
     subscribe(C.ROOT + "/live", snapshot => {
       live = C.record(snapshot.val());
-      $("liveState").textContent = live.active ? "Fonte imediata publicada: " + (live.title || "Ao vivo") : "Nenhuma fonte imediata ativa.";
-      $("liveOffBtn").disabled = !live.active;
+      if (liveMeta) { liveMeta.ref.off("value", liveMeta.callback); liveMeta = null; }
+      if (C.isRtcLive(live)) {
+        live.studioAvailable = false;
+        const ref = db.ref(C.ROOT + "/webrtc/" + live.webrtcSessionId + "/meta");
+        const callback = snapshot => { live.studioAvailable = snapshot.val()?.active === true; updateLiveState(); };
+        liveMeta = { ref, callback }; ref.on("value", callback, error => message(dataError(error), true));
+      }
       if (!dirtyForms.has("liveForm")) {
         $("liveTitle").value = live.title || "";
         $("liveAudioUrl").value = live.audioUrl || "";
         $("liveDescription").value = live.description || "";
       }
-      updateMetrics();
+      updateLiveState();
     });
     subscribe(C.ROOT + "/programs", snapshot => {
       programs = C.record(snapshot.val());
@@ -172,8 +186,15 @@
       schedule = C.record(snapshot.val());
       renderSchedule(); updateMetrics();
     });
-    message("Estúdio pronto. Configure uma fonte de áudio ou cadastre seu primeiro programa.");
+    subscribe(C.ROOT + "/library", snapshot => studio.setLibrary(C.record(snapshot.val())));
+    message("Estúdio pronto. Ative o microfone para transmitir ou abra Programas gravados para enviar um áudio.");
   }, () => message("Não foi possível verificar a sessão. Recarregue a página.", true, true));
+  function updateLiveState() {
+    $("liveState").textContent = C.isRtcLive(live) ? (live.studioAvailable ? "Estúdio ao vivo: " : "Estúdio desconectado: ") + (live.title || "Hi-Mundim") : live.active ? "Fonte externa: " + (live.title || "Ao vivo") : "Nenhuma transmissão imediata ativa.";
+    $("liveOffBtn").disabled = !live.active;
+    studio.setLive(live);
+    updateMetrics();
+  }
   function updateMetrics() {
     const source = C.selectSource({ live, config, programs, schedule });
     $("metricAir").textContent = source ? (source.kind === "live" ? "Ao vivo" : source.kind === "schedule" ? "Programa no ar" : "Áudio contínuo") : "Fora do ar";
@@ -196,18 +217,21 @@
     run(event.currentTarget, async () => {
       const title = $("liveTitle").value.trim();
       if (!title) throw new Error("Informe o título da transmissão.");
-      await db.ref(C.ROOT + "/live").update({ active: true, title, description: $("liveDescription").value.trim(), audioUrl: C.requireAudio($("liveAudioUrl").value), startedAt: live.active ? (live.startedAt || firebase.database.ServerValue.TIMESTAMP) : firebase.database.ServerValue.TIMESTAMP, ...stamp() });
+      const audioUrl = C.requireAudio($("liveAudioUrl").value);
+      if (studio.active) await studio.stop();
+      await db.ref(C.ROOT + "/live").update({ active: true, streamType: "URL", webrtcSessionId: "", title, description: $("liveDescription").value.trim(), audioUrl, startedAt: firebase.database.ServerValue.TIMESTAMP, ...stamp() });
       dirtyForms.delete("liveForm");
     }, "Fonte imediata publicada. Abra a rádio para ouvir.");
   });
   $("liveOffBtn").onclick = () => {
     if (!live.active || !confirm("Encerrar a fonte imediata? A rádio voltará para a agenda ou para o áudio contínuo configurado.")) return;
-    run($("liveOffBtn"), () => db.ref(C.ROOT + "/live").update({ active: false, endedAt: firebase.database.ServerValue.TIMESTAMP, ...stamp() }), "Fonte imediata encerrada.");
+    run($("liveOffBtn"), () => C.isRtcLive(live) ? studio.stop() : db.ref(C.ROOT + "/live").update({ active: false, endedAt: firebase.database.ServerValue.TIMESTAMP, ...stamp() }), "Transmissão encerrada.");
   };
   function resetProgram() {
     $("programForm").reset(); $("programId").value = "";
     $("programFormTitle").textContent = "Cadastrar programa";
     $("cancelProgramEdit").classList.add("hidden");
+    $("programFileNote").textContent = "Escolha o áudio para enviar.";
   }
   function resetSchedule() {
     $("scheduleForm").reset(); $("scheduleId").value = "";
@@ -223,7 +247,13 @@
       if (!title) throw new Error("Informe o título do programa.");
       if (id && !programs[id]) throw new Error("Este programa foi removido. Cancele a edição e atualize a biblioteca.");
       const ref = id ? db.ref(C.ROOT + "/programs/" + id) : db.ref(C.ROOT + "/programs").push();
-      const values = { title, category: $("programCategory").value, description: $("programDescription").value.trim(), audioUrl: C.requireAudio($("programAudioUrl").value), published: $("programPublished").value === "true", ...stamp() };
+      const file = $("programAudioFile").files[0];
+      let uploaded = {};
+      if (file) { message("Enviando áudio do programa… Aguarde a confirmação."); uploaded = await window.HimundimMedia.uploadAudio(file); }
+      if (!uploaded.url && !$("programAudioUrl").value.trim()) throw new Error("Escolha o arquivo de áudio do programa.");
+      const audioUrl = uploaded.url || C.requireAudio($("programAudioUrl").value);
+      if (auth.currentUser?.uid !== C.ADMIN_UID) throw new Error("Entre novamente antes de salvar o programa.");
+      const values = { title, category: $("programCategory").value, description: $("programDescription").value.trim(), audioUrl, published: $("programPublished").value === "true", ...(file ? { fileName: uploaded.fileName, durationSec: uploaded.durationSec } : {}), ...stamp() };
       if (!id) { values.createdAt = firebase.database.ServerValue.TIMESTAMP; values.createdBy = auth.currentUser.uid; }
       await ref.update(values);
       resetProgram();
@@ -267,15 +297,21 @@
   }
   $("adminSearch").addEventListener("input", renderPrograms);
   $("showPastSchedule").addEventListener("change", renderSchedule);
-  function preview(url) {
+  function preview(url, localFile = false) {
     try {
-      $("previewAudio").src = C.requireAudio(url);
+      $("previewAudio").src = localFile ? url : C.requireAudio(url);
       $("previewPanel").classList.remove("hidden");
       $("previewStatus").textContent = "O teste é ouvido apenas neste dispositivo.";
       $("previewAudio").play().catch(() => { $("previewStatus").textContent = "Use o controle de áudio para iniciar. Se não tocar, confira se o link é de áudio direto."; });
     } catch (error) { message(error.message, true); }
   }
-  document.querySelectorAll("[data-preview]").forEach(button => button.onclick = () => preview($(button.dataset.preview).value));
+  document.querySelectorAll("[data-preview]").forEach(button => button.onclick = () => {
+    if (button.dataset.preview === "programAudioUrl" && $("programAudioFile").files[0]) {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = URL.createObjectURL($("programAudioFile").files[0]); preview(previewUrl, true);
+    } else preview($(button.dataset.preview).value);
+  });
+  $("programAudioFile").onchange = () => { $("programFileNote").textContent = $("programAudioFile").files[0]?.name || (programs[$("programId").value]?.audioUrl ? "O áudio salvo será mantido." : "Escolha o áudio para enviar."); };
   $("closePreview").onclick = closePreview;
   $("previewAudio").addEventListener("error", () => { $("previewStatus").textContent = "O áudio não pôde ser carregado. Confira o link, o formato e o servidor."; });
   $("studio").addEventListener("click", event => {
@@ -288,8 +324,10 @@
       $("programId").value = id; $("programTitle").value = p.title || "";
       $("programCategory").value = C.CATEGORIES.includes(p.category) ? p.category : "Especial";
       $("programAudioUrl").value = p.audioUrl || ""; $("programDescription").value = p.description || "";
+      $("programAudioFile").value = ""; $("programFileNote").textContent = "Áudio salvo: " + (p.fileName || "arquivo disponível") + ". Escolha outro arquivo somente para substituí-lo.";
       $("programPublished").value = String(p.published !== false);
       $("programFormTitle").textContent = "Editar programa"; $("cancelProgramEdit").classList.remove("hidden");
+      $("recordedTools").open = true;
       $("programEditor").scrollIntoView({ block: "start" }); $("programTitle").focus({ preventScroll: true });
     }
     if (action === "preview-program" && p) preview(p.audioUrl);

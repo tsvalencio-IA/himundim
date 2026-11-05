@@ -20,6 +20,20 @@ test('live source takes priority over schedule and continuous audio', () => {
   const source = C.selectSource({ live: { active: true, audioUrl: url }, programs, schedule: { s: { programId: 'public', startAt: 1000, endAt: 4000 } }, config: { continuousEnabled: true, continuousAudioUrl: url }, now: 2000 });
   assert.equal(source.kind, 'live');
 });
+test('microphone broadcast plays in the same public player without a public audio URL', () => {
+  const live = { active: true, streamType: 'WEBRTC', webrtcSessionId: 'live_12345678', title: 'Microfone', studioAvailable: true };
+  const source = C.selectSource({ live, config: { continuousEnabled: true, continuousAudioUrl: url } });
+  assert.equal(source.kind, 'live');
+  assert.equal(source.streamType, 'WEBRTC');
+  assert.equal(source.audioUrl, '');
+  assert.equal(source.id, 'live_12345678');
+});
+test('a disconnected studio falls back to the schedule and never replays a stale audio URL', () => {
+  const live = { active: true, streamType: 'WEBRTC', webrtcSessionId: 'live_12345678', studioAvailable: false, audioUrl: url };
+  assert.equal(C.selectSource({ live }), null);
+  assert.equal(C.selectSource({ live, config: { continuousEnabled: true, continuousAudioUrl: url } }).kind, 'continuous');
+  assert.equal(C.selectSource({ live: { ...live, studioAvailable: true, webrtcSessionId: '../outside' } }), null);
+});
 test('a draft or broken earlier schedule cannot mask an eligible program', () => {
   const schedule = { a: { programId: 'hidden', startAt: 1000, endAt: 4000 }, b: { programId: 'broken', startAt: 1000, endAt: 4000 }, c: { programId: 'public', startAt: 1000, endAt: 4000 } };
   assert.equal(C.selectSource({ schedule, programs, now: 2000 }).id, 'c');

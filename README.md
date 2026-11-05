@@ -46,18 +46,31 @@ Com o e-mail identificado, use **Esqueci minha senha**. O link de redefinição 
 
 O controle visual por UID não substitui as regras do Realtime Database. As regras existentes devem autorizar gravações somente para a conta administradora no caminho `radio/himundim`. Esta atualização não altera usuários, senhas nem regras do Firebase.
 
-## Configurar e operar
+## Fluxo da rádio
 
-1. Em **Configuração**, informe o nome, a mensagem e, se necessário, uma fonte contínua de áudio por HTTPS.
-2. Em **Transmissão**, teste um link antes de colocá-lo no ar. Publicar uma URL não cria um servidor de transmissão nem captura um microfone.
-3. Cadastre programas com áudio direto. É possível editar, publicar, ocultar e ouvir um teste privado. Um programa vinculado à agenda precisa ter seus horários removidos antes da exclusão.
-4. Agende programas publicados com início e fim. O fuso é sempre `America/Sao_Paulo`; conflitos são rejeitados em uma transação no banco. Horários antigos sem fim precisam ser editados para liberar novas entradas que se sobreponham.
+O ouvinte abre a própria página Hi-Mundim e toca em **Ouvir agora**. Não existe cadastro de link público nem outra página obrigatória para ouvir.
 
-Prioridade da rádio: fonte imediata → programa no horário → fonte contínua habilitada → fora do ar. O ouvinte pode selecionar um programa do acervo e usar **Voltar à rádio** para retornar à transmissão.
+No administrativo, **Ativar microfone → Entrar ao vivo** transmite o áudio do aparelho. A mesa mistura voz, música e vinhetas. Arquivos locais podem ser carregados na mesa; a biblioteca permite enviar e reutilizar músicas e vinhetas. Programas gravados também recebem upload direto, sem exigir uma URL.
 
-O site oferece busca por programa, filtro de categoria, mini-player, volume, controles de mídia quando suportados pelo navegador e tema claro/escuro. A reprodução começa por ação do ouvinte. A continuidade em segundo plano depende do navegador e do sistema.
+A transmissão e a mesa reutilizam a lógica do aplicativo Bíblia Rádio, com transporte WebRTC e sinalização pelo Firebase. Referência de origem: `biblia-app-ruby.vercel.app/web/admin.js` e `/web/radio.js`, implantação do commit `de2938ee8d9329247910b21732099bbc5e8f5e91`. A aplicação e os dados da Bíblia Rádio não são alterados. Todo o estado desta implementação usa `radio/himundim/`. Os uploads usam o mesmo serviço de arquivos já usado pelo aplicativo, em pasta própria `himundim`.
 
-Todos os registros administrativos novos incluem autor e data de atualização. Nenhum dado de demonstração é gravado no Firebase pela publicação do site.
+1. Abra `/admin`, ative o microfone e entre ao vivo. Mantenha o estúdio aberto durante a transmissão.
+2. O público abre `/` e toca em **Ouvir agora**. A conexão anônima ocorre nos bastidores, sem formulário de login para o ouvinte.
+3. Use os controles de volume da mesa para microfone, música, vinhetas e saída. O microfone não retorna para o alto-falante do estúdio.
+4. Em **Músicas e vinhetas**, envie arquivos para reutilizar. Em **Programas gravados e agenda**, envie um programa e defina seus horários.
+5. Em **Configurações da rádio** ficam o nome, a mensagem e as fontes externas anteriores, preservadas como opções avançadas.
+
+Prioridade: seleção explícita do acervo → estúdio ao vivo ou fonte imediata → programa no horário → fonte contínua habilitada → fora do ar. A pausa do ouvinte fecha a conexão ao estúdio; retomar cria uma conexão nova. Encerrar a transmissão desliga o microfone e fecha os pares. Se o estúdio perder a conexão, a presença da sessão é desativada pelo Firebase e a página volta para a programação disponível.
+
+## Permissões do ao vivo
+
+O estúdio verifica a permissão de uma conexão anônima temporária dentro da sessão real antes de anunciar **NO AR**. Essa verificação usa uma instância Firebase separada, persistência em memória e exclui a conta e o registro temporários ao terminar. Não altera a conta administradora.
+
+A autenticação anônima está habilitada no Firebase. Uma sondagem sem sessão ativa foi recusada pelo banco e seu usuário temporário foi excluído; isso **não confirma** se a regra permite conexões dentro de uma sessão ativa. A regra atual completa não foi obtida. Não houve alteração das regras.
+
+Se a verificação do estúdio apontar bloqueio, o arquivo `docs/firebase-himundim-webrtc.rules.json` contém somente o bloco candidato para o caminho **rules.radio.himundim.webrtc**. Ele precisa ser combinado com as regras atuais nesse ponto exato; não deve substituir o arquivo inteiro de regras. O bloco dá escrita administrativa na sessão e permite ao ouvinte escrever somente no próprio UID durante uma sessão ativa, além de remover seus registros. As regras e os dados de `radio/live`, `radio/programs` e `radio/webrtc` da Bíblia permanecem fora desse bloco.
+
+O transporte preserva os servidores STUN da implementação original. Redes que exigem relay TURN podem impedir a conexão direta. Não foi configurado um serviço TURN sem credenciais do usuário. Navegadores e sistemas podem interromper o estúdio quando ele fica em segundo plano; o bloqueio de tela é solicitado quando suportado.
 
 ## Verificação
 
@@ -65,4 +78,6 @@ Todos os registros administrativos novos incluem autor e data de atualização. 
 node --test tests/*.test.js
 ```
 
-Os testes verificam prioridade de fontes, links de áudio, rascunhos, limites de horários, conflitos e conversão do fuso de Brasília. O login e as gravações reais dependem das credenciais e regras existentes no Firebase.
+Os 19 testes cobrem seleção de fontes, URLs de áudio, agenda, fuso de Brasília, sinalização host/ouvinte, candidatos ICE, cancelamento durante autenticação e limpeza de conexões, todos sem dados de produção.
+
+A interface foi verificada em larguras de 320, 390, 768 e 1280 pixels, sem rolagem lateral. O ambiente isolado confirmou a passagem de título e estado do estúdio para a página clonada. O navegador de teste não produziu candidatos de rede WebRTC e não transportou pacotes de áudio; por isso o teste não comprova recepção sonora entre aparelhos reais. O player só indica reprodução do ao vivo depois de a conexão WebRTC ser estabelecida. A transmissão real e os uploads dependem das permissões e dos serviços existentes.
