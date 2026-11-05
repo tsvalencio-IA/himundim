@@ -1,0 +1,154 @@
+{
+  "version": 1,
+  "source": "https://hi-mundim.com.br",
+  "capturedAt": "2026-11-05T16:10:03.927311+00:00",
+  "posts": 2256,
+  "pages": 10,
+  "categories": 4,
+  "tags": 3818,
+  "authors": 2,
+  "packs": 23,
+  "files": [
+    {
+      "path": "favicon.jpg",
+      "bytes": 824,
+      "sha256": "d7a443e91b7ceea896c37975487b154b928b731336387b7a6689acb3b728d4c6"
+    },
+    {
+      "path": "icon-192.jpg",
+      "bytes": 10030,
+      "sha256": "23fa289371d8eb532ee035dd93f48970fa945c61982fdb88aaa8dda83e529595"
+    },
+    {
+      "path": "index.json",
+      "bytes": 1927590,
+      "sha256": "eed0deec60a7f1887d3f7575c2486464ae2841249dd79e280abbe1a557e74d87"
+    },
+    {
+      "path": "kfest-source.css",
+      "bytes": 57976,
+      "sha256": "14e6bc5203b37e0242172a03deea86e231cf8cc1c982de8693bc79c22673ab18"
+    },
+    {
+      "path": "logo.jpg",
+      "bytes": 63011,
+      "sha256": "8f5837816bc2aac8aef77041051b070bd7fd0669c002ecfea3c61532c208060d"
+    },
+    {
+      "path": "posts-01.json.gz",
+      "bytes": 228698,
+      "sha256": "2c78c35d48373551b5b993b04a0d5cad69111f55e7a53f96dff01ad0e42caf7c"
+    },
+    {
+      "path": "posts-02.json.gz",
+      "bytes": 193358,
+      "sha256": "3dd9a5c1f80f4dd5d871ad4dbf9849626b42b47adee7ae563439ad5c5df18979"
+    },
+    {
+      "path": "posts-03.json.gz",
+      "bytes": 223779,
+      "sha256": "e90615d24fdd4fb6a08e290746953d52cf0b878858f6fb28120bd30652bb89a1"
+    },
+    {
+      "path": "posts-04.json.gz",
+      "bytes": 232844,
+      "sha256": "4bd5a8d7c5b47e8b366a2d88167982709a1d845701c4ba2117a31a20ab52f2d1"
+    },
+    {
+      "path": "posts-05.json.gz",
+      "bytes": 300101,
+      "sha256": "aa6d7bc85e2084be90bc411aed86208110e671351f4d04bc432326b3ffc93924"
+    },
+    {
+      "path": "posts-06.json.gz",
+      "bytes": 269315,
+      "sha256": "913da1590d71daa89c9d1c38a907e25c579241008ebc89a5ec6876eb0787cfb0"
+    },
+    {
+      "path": "posts-07.json.gz",
+      "bytes": 233457,
+      "sha256": "9b9e68662cba41a0b9f56cc03a6eab644be8b7f0fff65d94ca111dc9017ce7a5"
+    },
+    {
+      "path": "posts-08.json.gz",
+      "bytes": 237369,
+      "sha256": "488149ec50173ce247179f5d77b63a12b24942d4f476b5cf9c8be3b1e8db47d3"
+    },
+    {
+      "path": "posts-09.json.gz",
+      "bytes": 219752,
+      "sha256": "b8efa5512957672760670bd9de45f01815ae24f8b958f69ffd85107c1cfaddb4"
+    },
+    {
+      "path": "posts-10.json.gz",
+      "bytes": 231755,
+      "sha256": "063d730127fccb202876fb16fcd572cf855b7985bff458c1d1098167e5e17300"
+    },
+    {
+      "path": "posts-11.json.gz",
+      "bytes": 200673,
+      "sha256": "c5046c9379e078c371d70fb87ebff4453808fa9e7c3654f049c85f087678348d"
+    },
+    {
+      "path": "posts-12.json.gz",
+      "bytes": 194503,
+      "sha256": "38571adc2fc87967a1f049f378f084f2dcd3313cd98ce78327a63e1197f6cef4"
+    },
+    {
+      "path": "posts-13.json.gz",
+      "bytes": 206012,
+      "sha256": "3ae97a4c6c9d0b0847878c593f79e37eb0340d7d2f2dcb2bf95b87d450e374ea"
+    },
+    {
+      "path": "posts-14.json.gz",
+      "bytes": 197115,
+      "sha256": "7e67a4b5447962237c0569ec5916554fe49382b1adaad7fce46cab0597cf4942"
+    },
+    {
+      "path": "posts-15.json.gz",
+      "bytes": 198806,
+      "sha256": "90ffcf2451c4d9b8979ddebe038c8b80b39fe3fb2968326f0067261a506153f6"
+    },
+    {
+      "path": "posts-16.json.gz",
+      "bytes": 148214,
+      "sha256": "9baf6e17ab39531cec3ec655765869a8e7f45ca58c495670a4220de2173eb37a"
+    },
+    {
+      "path": "posts-17.json.gz",
+      "bytes": 206698,
+      "sha256": "649fd2cc8b5ad04c787ff977c587be555275fe5f10da8a5bb209e0737dfd2e34"
+    },
+    {
+      "path": "posts-18.json.gz",
+      "bytes": 194997,
+      "sha256": "b3bedf606de29027e0d5c5f8fe82df69f333dfec1f0c506f527d814eda15e892"
+    },
+    {
+      "path": "posts-19.json.gz",
+      "bytes": 157749,
+      "sha256": "c1f79e5a7780eff23c2af568786e484e8346fa17f703aab03ee15d3c66346fe2"
+    },
+    {
+      "path": "posts-20.json.gz",
+      "bytes": 128275,
+      "sha256": "23b6fccbf636173fd42897ff76e502a2d8dc986341f25dc4de8838e5f3fba46a"
+    },
+    {
+      "path": "posts-21.json.gz",
+      "bytes": 147606,
+      "sha256": "653c1304957e409bd7b817f854418aba148bf81445ad2117aacbfcc716053cc8"
+    },
+    {
+      "path": "posts-22.json.gz",
+      "bytes": 146482,
+      "sha256": "70fbef1f76e02d92af75e26a863dc91b0d2cc1b6b2a7e0892ff4f7232b503543"
+    },
+    {
+      "path": "posts-23.json.gz",
+      "bytes": 68618,
+      "sha256": "8517697ae9e37382bfa5d010cc0a3233385c72cbccefa3b2e53c62b11a93ebf1"
+    }
+  ],
+  "note": "Article and page HTML stored as original public source. Sanitize before DOM insertion. Article images are referenced by original URLs. Brand images are local copies."
+}

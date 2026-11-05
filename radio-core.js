@@ -98,8 +98,9 @@
     if (!Number.isFinite(Number(timestamp)) || !timestamp) return "Data não informada";
     return new Intl.DateTimeFormat("pt-BR", { timeZone: TIME_ZONE, weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(Number(timestamp)));
   }
+  function searchText(value) { return String(value || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLocaleLowerCase("pt-BR"); }
   function escape(value) {
     return String(value == null ? "" : value).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
-  return { ROOT, ADMIN_UID, TIME_ZONE, CATEGORIES, record, entries, audioUrl, requireAudio, publishedPrograms, scheduleRows, playableSchedule, isRtcLive, selectSource, hasOverlap, toLocalInput, fromLocalInput, formatDate, escape };
+  return { ROOT, ADMIN_UID, TIME_ZONE, CATEGORIES, record, entries, audioUrl, requireAudio, publishedPrograms, scheduleRows, playableSchedule, isRtcLive, selectSource, hasOverlap, toLocalInput, fromLocalInput, formatDate, searchText, escape };
 });

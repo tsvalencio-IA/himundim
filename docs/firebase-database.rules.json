@@ -6,13 +6,27 @@
       ".read": true,
       ".write": "auth != null && auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2'",
       "programs": {
-        ".indexOn": ["startAt", "published", "createdAt"]
+        ".indexOn": [
+          "startAt",
+          "published",
+          "createdAt"
+        ]
       },
-      "schedule": { ".read": true },
-      "status": { ".read": true },
-      "live": { ".read": true },
-      "config": { ".read": true },
-      "featureFlags": { ".read": true },
+      "schedule": {
+        ".read": true
+      },
+      "status": {
+        ".read": true
+      },
+      "live": {
+        ".read": true
+      },
+      "config": {
+        ".read": true
+      },
+      "featureFlags": {
+        ".read": true
+      },
       "webrtc": {
         "$sessionId": {
           "listeners": {
@@ -37,6 +51,23 @@
               }
             }
           }
+        },
+        "presence": {
+          "$uid": {
+            "$connectionId": {
+              ".write": "auth != null && auth.uid === $uid",
+              ".validate": "!newData.exists() || newData.hasChildren(['listening', 'updatedAt'])",
+              "listening": {
+                ".validate": "newData.isBoolean()"
+              },
+              "updatedAt": {
+                ".validate": "newData.isNumber() && newData.val() >= now - 60000 && newData.val() <= now + 60000"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          }
         }
       }
     },
@@ -50,6 +81,55 @@
       "$uid": {
         ".read": "auth != null && auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2'",
         ".write": false
+      }
+    },
+    "himundimMessages": {
+      ".read": "auth != null && auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2'",
+      ".indexOn": [
+        "lastSentAt"
+      ],
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "lastSentAt": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.isNumber() && newData.val() === now && (!data.exists() || newData.val() >= data.val() + 15000)"
+        },
+        "messages": {
+          "$messageId": {
+            ".write": "auth != null && auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2' || (auth != null && auth.uid === $uid && !data.exists() && newData.exists() && (!root.child('himundimMessages').child($uid).child('lastSentAt').exists() || root.child('himundimMessages').child($uid).child('lastSentAt').val() <= now - 15000))",
+            ".validate": "newData.hasChildren(['uid', 'name', 'text', 'createdAt', 'status']) && newData.child('uid').val() === $uid && (auth != null && auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2' || newData.parent().parent().child('lastSentAt').val() === now)",
+            "uid": {
+              ".validate": "newData.isString() && newData.val() === $uid"
+            },
+            "name": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
+            },
+            "city": {
+              ".validate": "newData.isString() && newData.val().length <= 100"
+            },
+            "text": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 1500"
+            },
+            "createdAt": {
+              ".validate": "newData.isNumber() && (auth != null && auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2' || newData.val() === now)"
+            },
+            "status": {
+              ".validate": "newData.isString() && (newData.val() === 'new' || (auth != null && auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2' && (newData.val() === 'read' || newData.val() === 'onair' || newData.val() === 'archived')))"
+            },
+            "reply": {
+              ".validate": "auth != null && auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2' && newData.isString() && newData.val().length <= 1500"
+            },
+            "repliedAt": {
+              ".validate": "auth != null && auth.uid === 'C19UZ7R1OSRaAGZ3XSXfBFaUzMD2' && newData.isNumber()"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
       }
     }
   }

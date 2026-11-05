@@ -1,0 +1,27 @@
+{
+  "id": "/?app=radio",
+  "name": "Rádio Hi-Mundim",
+  "short_name": "Hi-Mundim Rádio",
+  "description": "Ouça a Rádio Hi-Mundim, participe dos programas e acompanhe o guia do tempo livre.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/?app=radio#radio",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#f7f3e9",
+  "theme_color": "#f15a2b",
+  "categories": ["music", "entertainment", "news"],
+  "prefer_related_applications": false,
+  "icons": [
+    {"src": "/icons/radio-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/icons/radio-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/icons/radio-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ],
+  "shortcuts": [
+    {"name": "Ouvir a rádio", "url": "/?app=radio#radio", "icons": [{"src": "/icons/radio-192.png", "sizes": "192x192", "type": "image/png"}]},
+    {"name": "Programas gravados", "url": "/?app=radio#programas", "icons": [{"src": "/icons/radio-192.png", "sizes": "192x192", "type": "image/png"}]},
+    {"name": "Participar do programa", "url": "/?app=radio#participar", "icons": [{"src": "/icons/radio-192.png", "sizes": "192x192", "type": "image/png"}]}
+  ]
+}

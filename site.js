@@ -1,60 +1,28 @@
 (() => {
-  "use strict";
-  const cards = [...document.querySelectorAll("[data-slug]")];
-  const bySlug = new Map();
-  cards.forEach(card => {
-    const slug = card.dataset.slug;
-    if (!bySlug.has(slug)) bySlug.set(slug, []);
-    bySlug.get(slug).push(card);
-  });
-  async function getMeta(slug) {
-    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 8000);
-    try {
-      const response = await fetch("/api/himundim-meta?slug=" + encodeURIComponent(slug), { signal: controller.signal });
-      return response.ok ? await response.json() : null;
-    } catch (_) { return null; }
-    finally { clearTimeout(timer); }
-  }
-  function safeImage(value) {
-    try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password ? url.href : ""; }
-    catch (_) { return ""; }
-  }
-  getMeta("home").then(meta => {
-    const url = meta && safeImage(meta.logo), logo = document.getElementById("sourceLogo"), fallback = document.getElementById("brandFallback");
-    if (!url || !logo) return;
-    logo.onload = () => { logo.hidden = false; if (fallback) fallback.hidden = true; };
-    logo.onerror = () => { logo.hidden = true; if (fallback) fallback.hidden = false; };
-    logo.src = url;
-  });
-  const queue = [], requested = new Set();
-  let active = 0;
-  function pump() {
-    while (queue.length && active < 3) {
-      const slug = queue.shift();
-      active++;
-      getMeta(slug).then(meta => {
-        const url = meta && safeImage(meta.image);
-        if (!url) return;
-        bySlug.get(slug).forEach(card => {
-          const img = card.querySelector("img");
-          if (!img) return;
-          img.onload = () => card.classList.add("image-ready");
-          img.onerror = () => card.classList.remove("image-ready");
-          img.decoding = "async";
-          img.alt = "";
-          img.src = url;
-        });
-      }).finally(() => { active--; pump(); });
-    }
-  }
-  function request(slug) {
-    if (requested.has(slug)) return;
-    requested.add(slug); queue.push(slug); pump();
-  }
-  if ("IntersectionObserver" in window) {
-    const observer = new IntersectionObserver(entries => entries.forEach(entry => {
-      if (entry.isIntersecting) { observer.unobserve(entry.target); request(entry.target.dataset.slug); }
-    }), { rootMargin: "360px" });
-    cards.forEach(card => observer.observe(card));
-  } else bySlug.forEach((_, slug) => request(slug));
+'use strict';
+const C=window.HimundimContent,E=window.HimundimRadio.escape,$=id=>document.getElementById(id),main=document.querySelector('main'),packs=new Map();let index=null,generation=0;
+const home=document.createElement('div');home.id='editorialHome';let el=main.querySelector('.latest');while(el){const next=el.nextElementSibling;home.append(el);el=next;}main.append(home);
+const route=document.createElement('section');route.id='editorialRoute';route.className='page-width editorial-route';route.hidden=true;main.append(route);
+function safe(value,kind='link'){try{const u=new URL(value,location.origin);if(u.username||u.password)return '';if(kind==='link'&&['mailto:','tel:'].includes(u.protocol))return u.href;return ['https:','http:'].includes(u.protocol)?u.href.replace(/^http:/,'https:'):'';}catch(_){return '';}}
+function local(value){try{const u=new URL(value,'https://hi-mundim.com.br'),p=C.path(u.href);return p?p+u.search+u.hash:safe(u.href);}catch(_){return '';}}
+function sanitize(html){if(!window.DOMPurify)throw new Error('Não foi possível preparar o conteúdo. Recarregue a página.');const clean=window.DOMPurify.sanitize(String(html||''),{USE_PROFILES:{html:true},ADD_TAGS:['iframe'],ADD_ATTR:['data-form'],FORBID_TAGS:['script','style','form','input','button','textarea','select','noscript','template','xmp','noembed','noframes','plaintext'],FORBID_ATTR:['style']});const doc=new DOMParser().parseFromString(clean,'text/html');doc.querySelectorAll('script,style,link,meta,base,object,embed,form,input,button,textarea,select,svg,math').forEach(n=>n.remove());
+doc.querySelectorAll('*').forEach(n=>{for(const a of [...n.attributes])if(!['href','src','alt','title','width','height','class','id','colspan','rowspan','data-form'].includes(a.name))n.removeAttribute(a.name);if(n.id)n.id='article-'+n.id;
+if(n.hasAttribute('href')){const raw=n.getAttribute('href'),v=raw.startsWith('#')?'#article-'+raw.slice(1):local(raw);if(v)n.setAttribute('href',v);else n.removeAttribute('href');if(v.startsWith('https:')){n.target='_blank';n.rel='noopener noreferrer';}}
+if(n.hasAttribute('src')){const v=safe(n.getAttribute('src'),'asset');if(!v){n.remove();return;}n.setAttribute('src',v);}if(n.tagName==='IMG'){n.loading='lazy';n.decoding='async';}
+if(n.tagName==='IFRAME'){let u;try{u=new URL(n.src);}catch(_){n.remove();return;}if(!['www.youtube.com','www.youtube-nocookie.com','www.canva.com','player.vimeo.com','open.spotify.com','www.google.com','maps.google.com'].includes(u.hostname)){n.remove();return;}n.loading='lazy';n.setAttribute('allow','autoplay; encrypted-media; picture-in-picture; fullscreen');n.setAttribute('sandbox','allow-scripts allow-same-origin allow-forms allow-popups allow-presentation');n.setAttribute('referrerpolicy','strict-origin-when-cross-origin');}
+if(n.hasAttribute('data-form')&&!['6oBbU0','ri7wrj'].includes(n.getAttribute('data-form')))n.removeAttribute('data-form');});return doc.body.innerHTML;}
+const date=v=>new Intl.DateTimeFormat('pt-BR',{dateStyle:'long'}).format(new Date(v));const cats=p=>(p.categories||[]).map(id=>index.categories.find(c=>c.id===id)).filter(Boolean);
+function card(p){return '<a class="editorial-card" href="'+E(p.path)+'">'+(p.image?'<div class="editorial-card-image"><img src="'+E(safe(p.image,'asset'))+'" alt="" loading="lazy" decoding="async"></div>':'')+'<span>'+E(cats(p).map(c=>c.name).join(' · '))+'</span><h3>'+E(p.title)+'</h3><p>'+E(p.excerpt)+'</p><small>'+E(date(p.date))+' · '+E(p.author)+'</small></a>';}
+async function full(item){if(!item.pack)return item;if(!packs.has(item.pack))packs.set(item.pack,(async()=>{if('DecompressionStream'in window){const r=await fetch('/content/'+item.pack);if(!r.ok)throw new Error('Não foi possível carregar a matéria.');return new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).json();}return null;})().catch(error=>{packs.delete(item.pack);throw error;}));const pack=await packs.get(item.pack);if(pack)return pack.posts.find(p=>p.id===item.id);const r=await fetch('/api/editorial?path='+encodeURIComponent(item.path));if(!r.ok)throw new Error('Não foi possível carregar a matéria.');return r.json();}
+function loadForms(){if(!route.querySelector('.ml-embedded'))return;if(!window.ml){window.ml=function(){(window.ml.q=window.ml.q||[]).push(arguments);};window.ml('account','2197256');}document.querySelector('script[data-mailerlite]')?.remove();const s=document.createElement('script');s.src='https://assets.mailerlite.com/js/universal.js';s.async=true;s.dataset.mailerlite='1';document.head.append(s);}
+function listing(selected){const requested=Number(new URL(location.href).searchParams.get('pagina')||location.pathname.match(/\/page\/(\d+)/)?.[1]||1),pages=Math.max(1,Math.ceil(selected.rows.length/12)),page=Math.max(1,Math.min(pages,requested||1));const link=n=>{const u=new URL(location.href);u.pathname=u.pathname.replace(/\/page\/\d+\/?$/,'/');u.searchParams.set('pagina',n);return u.pathname+u.search;};route.innerHTML='<div class="editorial-heading"><p class="eyebrow">HI-MUNDIM · GUIA DO TEMPO LIVRE</p><h1 tabindex="-1">'+E(selected.title)+'</h1>'+(selected.description?'<p>'+E(selected.description)+'</p>':'')+'<small>'+selected.rows.length+' matérias · página '+page+' de '+pages+'</small></div><div class="editorial-grid">'+selected.rows.slice((page-1)*12,page*12).map(card).join('')+'</div>'+(selected.rows.length?'':'<p>Nenhuma matéria encontrada. Tente outro termo.</p>')+'<nav class="editorial-pagination" aria-label="Páginas de matérias">'+(page>1?'<a href="'+E(link(page-1))+'">← Anterior</a>':'')+'<span>'+page+' / '+pages+'</span>'+(page<pages?'<a href="'+E(link(page+1))+'">Próxima →</a>':'')+'</nav>';}
+async function render(){if(!index)return;const version=++generation,selected=C.select(index,location.href.replace(location.origin,'https://hi-mundim.com.br')),isHome=selected.type==='home';home.hidden=!isHome;route.hidden=isHome;document.body.classList.toggle('reading-editorial',!isHome);if(isHome){document.title='Hi-Mundim | guia do tempo livre + Rádio';return;}route.innerHTML='<p class="editorial-loading" role="status">Carregando conteúdo…</p>';
+if(selected.type==='list'){listing(selected);document.title=selected.title+' | Hi-Mundim';return;}if(selected.type==='missing'){route.innerHTML='<div class="editorial-heading"><h1>Página não encontrada</h1><p>Pesquise uma matéria ou navegue pelas categorias do Hi-Mundim.</p><a href="/">Voltar para o início →</a></div>';return;}
+try{const item=await full(selected.item);if(version!==generation)return;const related=index.posts.filter(p=>p.id!==item.id&&p.categories.some(id=>item.categories.includes(id))).slice(0,3),tags=(selected.item.tags||[]).map(t=>typeof t==='object'?t:(index.tags||[]).find(v=>v.id===t)).filter(Boolean);route.innerHTML='<article class="editorial-article"><a class="back-link" href="/">← Hi-Mundim</a><div class="article-categories">'+cats(item).map(c=>'<a href="'+E(c.path)+'">'+E(c.name)+'</a>').join('')+'</div><h1 tabindex="-1">'+E(item.title)+'</h1>'+(item.author?'<p class="article-byline"><a href="/author/'+E(selected.item.authorSlug||'')+'/">'+E(item.author)+'</a> · '+E(date(item.date))+'</p>':'')+(item.image?'<img class="article-cover" src="'+E(safe(item.image,'asset'))+'" alt="" decoding="async">':'')+'<div class="article-content">'+sanitize(item.content)+'</div>'+(item.slug==='fale-conosco'?'<div class="editorial-contact"><h2>Fale com a equipe</h2><p>Envie sua mensagem diretamente para a equipe pelo formulário do site.</p><a href="/#participar">Escrever mensagem →</a></div>':'')+(tags.length?'<nav class="article-tags" aria-label="Assuntos">'+tags.map(t=>'<a href="/tag/'+E(t.slug)+'/">'+E(t.name)+'</a>').join('')+'</nav>':'')+'<div class="article-share"><button type="button" id="shareArticle">Compartilhar matéria ↗</button></div></article>'+(related.length?'<section class="related-posts"><h2>Leia também</h2><div class="editorial-grid">'+related.map(card).join('')+'</div></section>':'');document.title=item.title+' | Hi-Mundim';$('shareArticle').onclick=async()=>{try{if(navigator.share)await navigator.share({title:item.title,url:location.href});else if(navigator.clipboard){await navigator.clipboard.writeText(location.href);$('shareArticle').textContent='Link copiado';}}catch(_){}};loadForms();}catch(error){if(version!==generation)return;route.innerHTML='<div class="editorial-heading"><h1>Não foi possível abrir este conteúdo</h1><p>'+E(error.message)+'</p><button id="retryArticle" type="button">Tentar novamente</button></div>';$('retryArticle').onclick=render;}}
+function nav(){document.querySelector('.main-nav').innerHTML=index.menus.info.filter(i=>i.label!=='Política de Cookies').map(i=>'<a href="'+E(i.path)+'">'+E(i.label)+'</a>').join('')+'<a class="nav-radio" href="/#radio">Rádio <span>OUVIR</span></a><a href="/#participar">Participar</a>';const n=document.createElement('nav');n.className='category-nav';n.setAttribute('aria-label','Categorias');n.innerHTML=index.menus.primary.map(i=>'<a href="'+E(i.path)+'">'+E(i.label)+'</a>').join('')+'<form id="editorialSearch"><label class="sr-only" for="siteSearch">Pesquisar em todo o site</label><input id="siteSearch" name="s" type="search" placeholder="Buscar no Hi-Mundim…" required><button type="submit">Buscar</button></form>';document.querySelector('.main-nav').after(n);$('editorialSearch').onsubmit=e=>{e.preventDefault();navigate('/?s='+encodeURIComponent($('siteSearch').value.trim()));};document.querySelector('.footer-links').innerHTML=index.menus.info.map(i=>'<a href="'+E(i.path)+'">'+E(i.label)+'</a>').join('')+'<a href="/fale-conosco/">Fale conosco</a><a href="/admin">Estúdio · Administrador ↗</a>';
+document.querySelectorAll('a[href]').forEach(a=>{try{const u=new URL(a.href),p=C.path(u.href);if(p){a.href=p+u.search+u.hash;a.removeAttribute('target');a.removeAttribute('rel');}}catch(_){}});const b=document.querySelector('.source-brand');b.href='/';b.removeAttribute('target');document.querySelectorAll('a[href="https://www.youtube.com/"]').forEach(a=>a.href='https://www.youtube.com/@HiMundimBrasil');document.querySelectorAll('a[href="https://www.instagram.com/himundim/"]').forEach(a=>a.href='https://www.instagram.com/hi_mundim/');}
+function homepage(){const lead=home.querySelector('.lead-grid');if(lead)lead.innerHTML=index.posts.slice(0,5).map(card).join('');home.querySelectorAll('.editorial-section').forEach(s=>{const c=index.categories.find(c=>c.name===s.querySelector('h2')?.textContent.trim()),grid=s.querySelector('.cards-three');if(c&&grid)grid.innerHTML=index.posts.filter(p=>p.categories.includes(c.id)).slice(0,3).map(card).join('');});home.querySelectorAll('[data-slug]').forEach(c=>{const p=index.posts.find(p=>p.slug===c.dataset.slug),img=c.querySelector('img');if(p&&img){img.src=p.image;c.classList.add('image-ready');}});const more=home.querySelector('.latest .section-title-row>a');if(more){more.href='/?arquivo=1';more.textContent='Ver todas as matérias →';}}
+function navigate(href){history.pushState({},'',href);render().then(()=>{if(location.hash){document.body.classList.remove('reading-editorial');document.getElementById(location.hash.slice(1))?.scrollIntoView({block:'start'});}else{window.scrollTo({top:0,behavior:'instant'});route.querySelector('h1')?.focus({preventScroll:true});}});}
+document.addEventListener('click',e=>{const a=e.target.closest('a[href]');if(!a||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||a.target==='_blank'||a.hasAttribute('download'))return;const u=new URL(a.href,location.href);if(u.origin!==location.origin||/^\/admin(?:\/|$)/.test(u.pathname)||/\.(pdf|jpg|png|webp|mp3|mp4|zip)$/i.test(u.pathname)||u.hash.startsWith('#article-'))return;e.preventDefault();navigate(u.pathname+u.search+u.hash);});window.addEventListener('popstate',render);
+fetch('/content/index.json').then(r=>{if(!r.ok)throw new Error();return r.json();}).then(v=>{index=v;nav();homepage();if(index.brand?.logo?.path){const logo=$('sourceLogo');logo.onload=()=>{logo.hidden=false;$('brandFallback').hidden=true;};logo.src=index.brand.logo.path;}return render();}).catch(()=>{if(location.pathname!=='/'){route.hidden=false;route.innerHTML='<p>Não foi possível carregar o conteúdo. Confira a conexão e recarregue.</p>';}});
 })();

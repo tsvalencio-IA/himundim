@@ -14,8 +14,8 @@ function allowed({ authUid = 'listener', pathUid = 'listener', active = true, ty
   const evaluate = value => new Function('auth', 'root', 'newData', '$uid', '$sessionId', 'return (' + value + ');')(...args);
   return (!!evaluate(current.rules.radio['.write']) || !!evaluate(expression['.write'])) && (newValue === null || !!evaluate(expression['.validate']));
 }
-test('the supplied Bible rules are preserved exactly, with only the Hi-Mundim subtree added', () => {
-  const copy = structuredClone(current); delete copy.rules.radio.himundim;
+test('the supplied Bible rules are preserved exactly, with only isolated Hi-Mundim nodes added', () => {
+  const copy = structuredClone(current); delete copy.rules.radio.himundim; delete copy.rules.himundimMessages;
   assert.deepEqual(copy, original);
 });
 test('Hi-Mundim listeners can join their own active session and cannot write another listener', () => {

@@ -85,7 +85,7 @@
       sessionId = window.HimundimRTC.newId("live_");
       const expectedSession = lastLive.webrtcSessionId || "";
       const newHost = await window.HimundimRTC.host({ db, auth, sessionId, stream: output.stream,
-        onCount: count => { $("listenerCount").textContent = count + (count === 1 ? " ouvinte conectado" : " ouvintes conectados"); },
+        onCount: count => { $("listenerCount").textContent = count + (count === 1 ? " conexão de voz ao vivo" : " conexões de voz ao vivo"); },
         onError: () => status("Não foi possível atender uma conexão. Confira a conexão e as permissões dos ouvintes.", true)
       });
       host = newHost;
@@ -97,17 +97,19 @@
         }, undefined, false);
         if (!result.committed) throw new Error("Outro estúdio iniciou uma transmissão. Atualize a página antes de continuar.");
         startedAt = Number(result.snapshot.val()?.startedAt) || Date.now(); tick(); await wake();
+        window.dispatchEvent(new CustomEvent("himundim:live-start"));
         status("● NO AR — microfone, música e vinhetas chegam ao player da página do ouvinte. Mantenha o estúdio aberto.");
       } catch (error) { await newHost.stop(); host = null; sessionId = ""; throw error; }
     }
     function releaseAudio() {
+      window.dispatchEvent(new CustomEvent("himundim:live-stop"));
       music.pause(); effects.forEach(effect => effect.stop()); effects.clear();
       microphone?.getTracks().forEach(track => track.stop()); microphone = null;
       micSource?.disconnect(); micGain?.disconnect(); micAnalyser?.disconnect();
       micSource = null; micGain = null; micAnalyser = null;
       clearTimeout(meter); clearInterval(clock);
       $("masterLevel").style.width = "0%"; $("elapsedLive").textContent = "00:00:00";
-      $("listenerCount").textContent = "0 ouvintes conectados";
+      $("listenerCount").textContent = "0 conexões de voz ao vivo";
       wakeLock?.release().catch(() => {}); wakeLock = null;
       // Keep the reusable media-element graph, but suspend its audio processing.
       context?.suspend().catch(() => {});
@@ -181,11 +183,12 @@
     }
     $("stopJinglesBtn").onclick = () => { [...effects].forEach(effect => effect.stop()); };
     function renderLibrary() {
-      const query = $("studioLibrarySearch").value.trim().toLocaleLowerCase("pt-BR");
-      const rows = C.entries(library).filter(item => C.audioUrl(item.url) && (item.name || "").toLocaleLowerCase("pt-BR").includes(query));
+      const query = C.searchText($("studioLibrarySearch").value.trim());
+      const rows = C.entries(library).filter(item => C.audioUrl(item.url) && (!$("studioLibraryKind").value || item.kind === $("studioLibraryKind").value) && C.searchText(item.name).includes(query));
       $("studioLibraryList").innerHTML = rows.length ? rows.map(item => '<article class="studio-asset"><div><strong>' + C.escape(item.name || "Áudio") + '</strong><small>' + (item.kind === "MUSIC" ? "Música" : "Vinheta / efeito") + '</small></div><button class="btn secondary compact" type="button" data-studio-asset="' + C.escape(item.id) + '">' + (item.kind === "MUSIC" ? "Carregar na mesa" : "Tocar vinheta") + '</button></article>').join("") : '<p class="empty">' + (query ? "Nenhum áudio encontrado." : "Envie músicas e vinhetas para reutilizar na rádio.") + '</p>';
     }
     $("studioLibrarySearch").oninput = renderLibrary;
+    $("studioLibraryKind").onchange = renderLibrary;
     $("studioLibraryList").onclick = event => {
       const button = event.target.closest("[data-studio-asset]"), item = button && library[button.dataset.studioAsset];
       if (item) action(() => item.kind === "MUSIC" ? loadMusic(C.requireAudio(item.url), item.name) : playEffect(item));
@@ -204,7 +207,7 @@
     window.addEventListener("pagehide", () => { if (host) stop().catch(() => {}); else releaseAudio(); });
     document.addEventListener("visibilitychange", () => { if (host && !document.hidden) wake(); });
     buttons();
-    return { stop, releaseAudio, get active() { return !!host; }, get sessionId() { return host ? sessionId : ""; },
+    return { stop, releaseAudio, get active() { return !!host; }, get sessionId() { return host ? sessionId : ""; }, get stream() { return output?.stream || null; },
       setLive(value) {
         lastLive = value;
         if (host && (!value.active || value.webrtcSessionId !== sessionId)) { const old = host; host = null; old.stop().catch(() => {}); sessionId = ""; releaseAudio(); }

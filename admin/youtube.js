@@ -76,8 +76,8 @@
       return '<article class="youtube-card"><img src="' + C.escape(item.thumbnail || "https://i.ytimg.com/vi/" + item.videoId + "/mqdefault.jpg") + '" alt="" loading="lazy"><div><h3>' + C.escape(item.title) + '</h3><div class="btn-row"><button class="btn secondary compact" type="button" data-youtube-preview="' + C.escape(key) + '">Pré-ouvir (só eu)</button><button class="btn compact" type="button" data-youtube-send="' + C.escape(key) + '">Tocar para ouvintes</button>' + (saved ? "" : '<button class="btn secondary compact" type="button" data-youtube-save="' + C.escape(key) + '">Salvar na biblioteca</button>') + '</div></div></article>';
     }
     function renderLibrary() {
-      const query = $("youtubeLibrarySearch").value.trim().toLocaleLowerCase("pt-BR");
-      const rows = C.entries(library).filter(row => row.kind === "YOUTUBE" && Y.videoId(row.youtubeId || row.url) && String(row.name || "").toLocaleLowerCase("pt-BR").includes(query));
+      const query = C.searchText($("youtubeLibrarySearch").value.trim());
+      const rows = C.entries(library).filter(row => row.kind === "YOUTUBE" && Y.videoId(row.youtubeId || row.url) && C.searchText(row.name).includes(query));
       $("youtubeLibraryList").innerHTML = rows.length ? rows.map(row => card({ videoId: Y.videoId(row.youtubeId || row.url), title: row.name || "YouTube", thumbnail: row.thumbnail }, "library_" + row.id, true)).join("") : '<p class="empty">' + (query ? "Nenhum YouTube encontrado." : "Os vídeos salvos ficam aqui para usar em outros programas.") + '</p>';
     }
     $("youtubeUrl").oninput = () => { selected = null; $("youtubeSelectedTitle").textContent = Y.videoId($("youtubeUrl").value) ? "Link de vídeo informado." : "Nenhum vídeo selecionado."; controls(); };
@@ -100,6 +100,7 @@
     $("masterVolume").addEventListener("input", () => { clearTimeout(volumeTimer); if (ownsLive() && current()) volumeTimer = setTimeout(() => attempt(() => publish(item => ({ ...item, command: "VOLUME" }))), 160); });
     $("youtubeLibrarySearch").oninput = renderLibrary;
     try { $("youtubeApiKey").value = localStorage.getItem("himundim-youtube-api-key") || ""; } catch (_) {}
+    if ($("youtubeKeyShowBtn")) $("youtubeKeyShowBtn").onclick = () => { const show = $("youtubeApiKey").type === "password"; $("youtubeApiKey").type = show ? "text" : "password"; $("youtubeKeyShowBtn").textContent = show ? "Ocultar chave" : "Mostrar chave"; };
     $("youtubeKeySaveBtn").onclick = () => { try { localStorage.setItem("himundim-youtube-api-key", $("youtubeApiKey").value.trim()); notice("Chave de pesquisa salva neste aparelho."); } catch (_) { notice("O navegador não permitiu salvar a chave neste aparelho.", true); } };
     $("youtubeSearchForm").onsubmit = event => {
       event.preventDefault(); attempt(async () => {

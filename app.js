@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const $ = id => document.getElementById(id), C = window.HimundimRadio, Y = window.HimundimYouTube;
+  const $ = id => document.getElementById(id), C = window.HimundimRadio, Y = window.HimundimYouTube, R = window.HimundimReplay;
   const audio = $("audio"), play = $("playBtn"), miniPlay = $("miniPlayBtn");
   const state = $("audioState");
   if (!C || !window.firebase || !window.HIMUNDIM_FIREBASE_CONFIG || window.HIMUNDIM_DB_ROOT !== C.ROOT) {
@@ -10,13 +10,16 @@
     return;
   }
   const app = firebase.initializeApp(window.HIMUNDIM_FIREBASE_CONFIG), db = app.database(), auth = app.auth();
+  const audience = window.HimundimAudience.create({ db, auth, rootPath: C.ROOT, adminUid: C.ADMIN_UID });
+  window.HimundimAudience.bindMessages({ db, audience });
   let live = {}, programs = {}, schedule = {}, config = {}, current = null, currentKey = "", youtubeState = {}, rtcFailure = "";
+  let replaySeek = 0;
   let manualId = "", wantsPlayback = false, boundaryTimer = null, connected = false;
   let rtc = null, rtcAttempt = 0, rtcTimer = null, connectingLive = false, rtcConnected = false, liveMeta = null;
   const loaded = new Set(), failures = new Set();
   const youtube = Y.createSurface({ container: $("radioYoutube"), mountId: "radioYoutubePlayer", title: $("radioYoutubeTitle"), notice: $("radioYoutubeStatus"),
     onState: status => {
-      if (!current || current.streamType !== "WEBRTC") return;
+      if (!current) return;
       $("activateYoutubeBtn").hidden = status !== "blocked" && status !== "error";
       if (status === "playing" && wantsPlayback) state.textContent = rtcFailure ? "YouTube reproduzindo. A voz do estúdio não conectou." : "Reproduzindo";
       controls();
@@ -31,11 +34,17 @@
   function source() { return C.selectSource({ live, programs, schedule, config, manualId }); }
   function youtubeAvailable() { return current?.streamType === "WEBRTC" && !!Y.normalize(youtubeState, current.webrtcSessionId); }
   function syncYoutube(shouldPlay = wantsPlayback) {
+    if (current && current.streamType !== "WEBRTC" && current.youtubeCues) {
+      const cue = R.cueAt(current.youtubeCues, audio.currentTime || 0, Date.now(), replaySeek);
+      if (!cue) { youtube.stop(); return Promise.resolve(); }
+      return youtube.update(cue, "replay", shouldPlay).catch(error => { $("radioYoutubeStatus").textContent = error.message; $("activateYoutubeBtn").hidden = false; });
+    }
     if (!youtubeAvailable()) { youtube.stop(); return Promise.resolve(); }
     return youtube.update(youtubeState, current.webrtcSessionId, shouldPlay).catch(error => { $("radioYoutubeStatus").textContent = error.message; $("activateYoutubeBtn").hidden = false; });
   }
   function controls() {
     const playing = youtube.playing || !audio.paused && !audio.ended && (current?.streamType !== "WEBRTC" || rtcConnected);
+    audience.setListening(playing);
     play.querySelector(".play-symbol").textContent = playing ? "❚❚" : "▶";
     play.querySelector(".play-copy").textContent = playing ? "PAUSAR" : connectingLive ? "CONECTANDO…" : "OUVIR AGORA";
     play.setAttribute("aria-busy", String(connectingLive));
@@ -64,6 +73,8 @@
       if (current.streamType === "WEBRTC" && !audio.srcObject) {
         stopRtc(); connectingLive = true; controls();
         const attempt = rtcAttempt;
+        await audience.user();
+        if (!wantsPlayback || attempt !== rtcAttempt || expectedKey !== currentKey) return;
         const fail = text => {
           if (attempt !== rtcAttempt || expectedKey !== currentKey) return;
           rtcFailure = text;
@@ -130,7 +141,7 @@
     const nextKey = current ? [current.kind, current.id, current.audioUrl].join("|") : "";
     if (nextKey !== currentKey) {
       currentKey = nextKey;
-      youtube.stop(); rtcFailure = "";
+      youtube.stop(); rtcFailure = ""; replaySeek++;
       stopRtc(); audio.srcObject = null;
       $("retryAudioBtn").hidden = true;
       if (!current) {
@@ -173,8 +184,8 @@
   function renderLibrary() {
     if (failures.has("programs")) { $("programLibrary").innerHTML = '<p class="library-empty">Não foi possível consultar os programas. Verifique a conexão e recarregue.</p>'; return; }
     const all = C.publishedPrograms(programs).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
-    const query = $("programSearch").value.trim().toLocaleLowerCase("pt-BR"), category = $("categoryFilter").value;
-    const rows = all.filter(p => (!category || p.category === category) && (String(p.title || "") + " " + String(p.description || "")).toLocaleLowerCase("pt-BR").includes(query));
+    const query = C.searchText($("programSearch").value.trim()), category = $("categoryFilter").value;
+    const rows = all.filter(p => (!category || p.category === category) && C.searchText(String(p.title || "") + " " + String(p.description || "")).includes(query));
     $("libraryCount").textContent = all.length ? all.length + (all.length === 1 ? " programa" : " programas") : "";
     $("programLibrary").innerHTML = rows.length ? rows.map(p => '<article class="program-card"><span class="category">' + C.escape(p.category || "Especial") + '</span><h3>' + C.escape(p.title || "Programa") + '</h3><p>' + C.escape(p.description || "Ouça este programa da Rádio Hi-Mundim.") + '</p><button type="button" data-listen="' + C.escape(p.id) + '" aria-label="Ouvir ' + C.escape(p.title || "programa") + '" aria-pressed="' + String(manualId === p.id) + '">' + (manualId === p.id ? "▶ Programa selecionado" : "▶ Ouvir programa") + '</button></article>').join("") : '<p class="library-empty">' + (!loaded.has("programs") ? "Carregando programas…" : all.length ? "Nenhum programa encontrado para esse filtro." : "Os programas publicados pela rádio aparecerão aqui.") + '</p>';
   }
@@ -240,7 +251,7 @@
     connectingLive = false; clearTimeout(rtcTimer); state.textContent = "Reproduzindo"; $("retryAudioBtn").hidden = true; controls();
   });
   audio.addEventListener("waiting", () => { if (wantsPlayback) state.textContent = "Carregando áudio…"; });
-  audio.addEventListener("ended", () => { wantsPlayback = false; state.textContent = "Programa encerrado"; controls(); });
+  audio.addEventListener("ended", () => { wantsPlayback = false; youtube.stop(); state.textContent = "Programa encerrado"; controls(); });
   audio.addEventListener("error", () => {
     if (!current) return;
     wantsPlayback = false;
@@ -251,17 +262,26 @@
   audio.addEventListener("loadedmetadata", () => {
     if (current && current.kind === "schedule" && Number.isFinite(audio.duration)) {
       const elapsed = Math.max(0, (Date.now() - current.startAt) / 1000);
-      if (elapsed < audio.duration) { try { audio.currentTime = elapsed; } catch (_) {} }
+      if (elapsed < audio.duration) { try { audio.currentTime = R.sourceTime(elapsed, current.editCuts, Number(current.durationSec) || audio.duration); } catch (_) {} }
     }
+  });
+  function replayDuration() { return Number.isFinite(audio.duration) ? audio.duration : Number(current?.durationSec) || 0; }
+  audio.addEventListener("seeked", () => { replaySeek++; syncYoutube(); });
+  audio.addEventListener("timeupdate", () => {
+    if (!current || current.streamType === "WEBRTC") return;
+    const next = R.nextTime(audio.currentTime, current.editCuts, replayDuration());
+    if (next !== audio.currentTime) { audio.currentTime = next; replaySeek++; }
+    syncYoutube();
   });
   function time(seconds) { const n = Math.max(0, Math.floor(Number(seconds) || 0)); return Math.floor(n / 60) + ":" + String(n % 60).padStart(2, "0"); }
   audio.addEventListener("timeupdate", () => {
-    if (!current || current.kind !== "library" || !Number.isFinite(audio.duration) || !audio.duration) return;
-    $("audioSeek").value = (audio.currentTime / audio.duration) * 100;
-    $("audioTime").textContent = time(audio.currentTime) + " / " + time(audio.duration);
+    if (!current || current.kind !== "library" || !replayDuration()) return;
+    const total = R.duration(replayDuration(), current.editCuts);
+    $("audioSeek").value = total ? (R.editedTime(audio.currentTime, current.editCuts) / total) * 100 : 0;
+    $("audioTime").textContent = time(R.editedTime(audio.currentTime, current.editCuts)) + " / " + time(total);
   });
   $("audioSeek").addEventListener("input", () => {
-    if (current && current.kind === "library" && Number.isFinite(audio.duration)) audio.currentTime = (Number($("audioSeek").value) / 100) * audio.duration;
+    if (current && current.kind === "library" && replayDuration()) { audio.currentTime = R.sourceTime((Number($("audioSeek").value) / 100) * R.duration(replayDuration(), current.editCuts), current.editCuts, replayDuration()); replaySeek++; }
   });
   $("shareRadioBtn").onclick = async () => {
     const share = { title: config.stationName || "Rádio Hi-Mundim", text: "Ouça a Rádio Hi-Mundim", url: location.origin + "/#radio" };
@@ -277,6 +297,6 @@
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { applyPlayer(); renderSchedule(); } });
   $("activateYoutubeBtn").onclick = () => { if (!wantsPlayback) startPlayback(); else youtube.start().catch(error => { $("radioYoutubeStatus").textContent = error.message; }); };
-  window.addEventListener("pagehide", () => { stopRtc(); youtube.stop(); });
+  window.addEventListener("pagehide", () => { wantsPlayback = false; audience.stop(); stopRtc(); youtube.stop(); });
   controls();
 })();

@@ -18,6 +18,12 @@
   const youtube = window.HimundimYoutubeStudio.create({ db, auth, studio,
     canWrite: () => auth.currentUser?.uid === C.ADMIN_UID && connected && !busy
   });
+  const recorder = window.HimundimRecorder.create({ db, auth, studio, canWrite: () => auth.currentUser?.uid === C.ADMIN_UID && connected && !busy });
+  const audience = window.HimundimAudienceAdmin.create({ db, auth });
+  $("copyFirebaseRules").onclick = async () => {
+    try { const response = await fetch("/docs/firebase-database.rules.json"); if (!response.ok) throw new Error(); await navigator.clipboard.writeText(await response.text()); $("rulesCopyStatus").textContent = "Regras copiadas. Agora cole no Realtime Database e clique em Publicar."; }
+    catch (_) { $("rulesCopyStatus").textContent = "Use Baixar regras e copie o conteúdo do arquivo."; }
+  };
   const stamp = () => ({ updatedAt: firebase.database.ServerValue.TIMESTAMP, updatedBy: auth.currentUser.uid });
   function message(text, error = false, login = false) {
     const target = $(login ? "loginStatus" : "adminStatus");
@@ -125,6 +131,7 @@
   };
   auth.onAuthStateChanged(async user => {
     unsubscribe();
+    audience.stop();
     const allowed = !!user && user.uid === C.ADMIN_UID;
     $("loginCard").classList.toggle("hidden", allowed);
     $("studio").classList.toggle("hidden", !allowed);
@@ -148,6 +155,7 @@
       if (!denied) message("Entre com o e-mail e a senha da conta cadastrada. Se precisar, use as opções de recuperação abaixo.", false, true);
       return;
     }
+    audience.start();
     $("sessionEmail").textContent = user.email || "Administrador autenticado";
     message("Administrador autenticado. Carregando a rádio…");
     subscribe(".info/connected", snapshot => {
@@ -289,9 +297,9 @@
     const selected = $("scheduleProgram").value;
     $("scheduleProgram").innerHTML = '<option value="">Selecione…</option>' + C.publishedPrograms(programs).map(p => '<option value="' + C.escape(p.id) + '">' + C.escape(p.title) + '</option>').join("");
     $("scheduleProgram").value = selected;
-    const query = $("adminSearch").value.trim().toLocaleLowerCase("pt-BR");
-    const rows = C.entries(programs).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0)).filter(p => (String(p.title || "") + " " + String(p.category || "")).toLocaleLowerCase("pt-BR").includes(query));
-    $("programAdminList").innerHTML = rows.length ? rows.map(p => '<article class="admin-list-item"><div class="item-copy"><span class="tag">' + C.escape(p.category || "Especial") + '</span><h3>' + C.escape(p.title || "Sem título") + '</h3><p>' + C.escape(p.description || "Sem descrição.") + '</p><small>' + (p.published === false ? "Rascunho" : "Publicado") + '</small></div><div class="item-actions"><button class="btn secondary compact" data-action="edit-program" data-id="' + C.escape(p.id) + '">Editar</button><button class="btn secondary compact" data-action="preview-program" data-id="' + C.escape(p.id) + '">Ouvir teste</button><button class="btn secondary compact" data-action="toggle-program" data-id="' + C.escape(p.id) + '">' + (p.published === false ? "Publicar" : "Ocultar") + '</button><button class="btn danger compact" data-action="delete-program" data-id="' + C.escape(p.id) + '">Excluir</button></div></article>').join("") : '<p class="empty">' + (query ? "Nenhum programa encontrado." : "Sua biblioteca está vazia. Cadastre o primeiro programa acima.") + '</p>';
+    const query = C.searchText($("adminSearch").value.trim());
+    const rows = C.entries(programs).sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0)).filter(p => C.searchText(String(p.title || "") + " " + String(p.category || "") + " " + String(p.description || "")).includes(query));
+    $("programAdminList").innerHTML = rows.length ? rows.map(p => '<article class="admin-list-item"><div class="item-copy"><span class="tag">' + C.escape(p.category || "Especial") + '</span><h3>' + C.escape(p.title || "Sem título") + '</h3><p>' + C.escape(p.description || "Sem descrição.") + '</p><small>' + (p.published === false ? "Rascunho" : "Publicado") + '</small></div><div class="item-actions"><button class="btn secondary compact" data-action="edit-program" data-id="' + C.escape(p.id) + '">Editar</button><button class="btn secondary compact" data-action="preview-program" data-id="' + C.escape(p.id) + '">Ouvir teste</button><button class="btn secondary compact" data-action="edit-audio" data-id="' + C.escape(p.id) + '">Cortar áudio</button><button class="btn secondary compact" data-action="toggle-program" data-id="' + C.escape(p.id) + '">' + (p.published === false ? "Publicar" : "Ocultar") + '</button><button class="btn danger compact" data-action="delete-program" data-id="' + C.escape(p.id) + '">Excluir</button></div></article>').join("") : '<p class="empty">' + (query ? "Nenhum programa encontrado." : "Sua biblioteca está vazia. Cadastre o primeiro programa acima.") + '</p>';
   }
   function renderSchedule() {
     const all = C.entries(schedule).sort((a, b) => Number(a.startAt || 0) - Number(b.startAt || 0));
@@ -337,6 +345,7 @@
       $("programEditor").scrollIntoView({ block: "start" }); $("programTitle").focus({ preventScroll: true });
     }
     if (action === "preview-program" && p) preview(p.audioUrl);
+    if (action === "edit-audio" && p) recorder.openProgram({ ...p, id }).catch(error => message(error.message, true));
     if (action === "toggle-program" && p) {
       if (p.published !== false && !confirm("Ocultar este programa? Ele deixará de tocar na agenda e de aparecer na biblioteca pública.")) return;
       run(button, () => db.ref(C.ROOT + "/programs/" + id).update({ published: p.published === false, ...stamp() }), p.published === false ? "Programa publicado." : "Programa oculto.");
